@@ -6,9 +6,10 @@ import torch_geometric.transforms as T
 from torch_geometric.data import HeteroData
 from torch_geometric.loader import LinkNeighborLoader, NeighborLoader
 from torch_geometric.utils import to_scipy_sparse_matrix
+from scipy.sparse import csr_matrix
 
 
-def split_by_time(df: pd.DataFrame, col: str, split_point=None):
+def split_by_time(df: pd.DataFrame, col: str, supervision_ratio: float=0.2, validation_ratio: float=0.3):
     """
     Sort and split dataframe into train and test sets on given split point.
 
@@ -21,25 +22,22 @@ def split_by_time(df: pd.DataFrame, col: str, split_point=None):
         Tuple of (train_set, test_set) where train contains rows before `date`
     """
     df_sorted = df.sort_values(by=col)
+    split_training = 1.0 - supervision_ratio - validation_ratio
+    training_split_point = int(df_sorted.shape[0] * split_training)
+    supervision_split_point = int(df_sorted.shape[0] * (split_training + supervision_ratio))
 
-    if isinstance(split_point, str):
-        mask = df_sorted[col] <= split_point
-    elif isinstance(split_point, float):
-        mask = np.concatenate([np.ones(int(df_sorted.shape[0] * split_point)),
-                               np.zeros(df_sorted.shape[0] - int(df_sorted.shape[0] * split_point))]).astype(bool)
+    df_train = df_sorted[:training_split_point]
+    df_supervision = df_sorted[training_split_point:supervision_split_point]
+    df_valid = df_sorted[supervision_split_point:]
 
-    df_train = df_sorted[mask]
-    df_test = df_sorted[~mask]
-
-    return df_train, df_test
+    return df_train, df_supervision, df_valid
 
 
-def filter_test(df_train, df_test, user_col, item_col):
+def filter_set(df, df_train, user_col, item_col):
     all_users, all_items = df_train[user_col].unique(), df_train[item_col].unique()
-    df_test_filter = df_test[(df_test[user_col].isin(all_users)) & (df_test[item_col].isin(all_items))]
+    df_filter = df[(df[user_col].isin(all_users)) & (df[item_col].isin(all_items))]
 
-    return df_test_filter
-
+    return df_filter
 
 
 def load_data_from_csv(path_relations: str, path_user_attr: str = None, path_item_attr: str = None):
@@ -73,7 +71,7 @@ def load_data_from_csv(path_relations: str, path_user_attr: str = None, path_ite
     return relations, user_attr, item_attr
 
 
-def load_graph(relations: np.array, user_attr: np.array, item_attr: np.array) -> HeteroData:
+def load_graph(train_ei: np.array, test_ei: np.array, user_attr: np.array, item_attr: np.array) -> HeteroData:
     """
     Loads a graph data structure from a pandas DataFrame.
 
@@ -88,7 +86,6 @@ def load_graph(relations: np.array, user_attr: np.array, item_attr: np.array) ->
         >>> df = pd.DataFrame({'user_id': [1, 2, 3], 'app_id': [4, 5, 6], 'is_recommended': [1, 0 ,1]})
         >>> graph = load_graph(df)
     """
-
     data = HeteroData()
 
     data['user'].x = torch.from_numpy(user_attr)
@@ -97,11 +94,9 @@ def load_graph(relations: np.array, user_attr: np.array, item_attr: np.array) ->
     data['app'].x = torch.from_numpy(item_attr)
     data['app'].n_id = torch.arange(item_attr.shape[0])
 
-    edge_index = torch.from_numpy(relations)
-    edge_label = torch.ones(relations.shape[1], dtype=torch.long)
-
-    data['user', 'recommends', 'app'].edge_index = edge_index
-    data['user', 'recommends', 'app'].edge_label = edge_label
+    data['user', 'recommends', 'app'].edge_index = torch.from_numpy(train_ei)
+    data['user', 'recommends', 'app'].edge_label_index = torch.from_numpy(test_ei)
+    data['user', 'recommends', 'app'].edge_label = torch.ones(test_ei.shape[1], dtype=torch.long)
 
     return data
 
@@ -173,13 +168,16 @@ def init_edge_loader(data: HeteroData, **kwargs) -> NeighborLoader:
 
 def get_sparse_adj_matr(data):
     # Extract sparse adjacency matrix with message passing edges
-    mp_edges = data['user', 'recommends', 'app']['edge_index']
-    mp_matrix = to_scipy_sparse_matrix(mp_edges, num_nodes=n_users).tocsr()
+    n_users = data['user'].x.shape[0]
+    n_items = data['app'].x.shape[0]
 
-    # Extract sparse adjacency matrix with validation edges
-    true_mask = data['user', 'recommends', 'app']['edge_label'].nonzero().flatten()
-    val_edges = data['user', 'recommends', 'app']['edge_label_index'][:, true_mask]
-    val_matrix = to_scipy_sparse_matrix(val_edges, num_nodes=n_users).tocsr()
+    mp_edges = data['user', 'recommends', 'app']['edge_index']
+    mp_ones = torch.ones(mp_edges.shape[1])
+    val_edges = data['user', 'recommends', 'app']['edge_label_index']
+    val_ones = torch.ones(val_edges.shape[1])
+
+    mp_matrix = csr_matrix((mp_ones, (mp_edges[0], mp_edges[1])), shape=(n_users, n_items))
+    val_matrix = csr_matrix((val_ones, (val_edges[0], val_edges[1])), shape=(n_users, n_items))
 
     return mp_matrix, val_matrix
 
