@@ -88,15 +88,15 @@ def load_graph(train_ei: np.array, test_ei: np.array, user_attr: np.array, item_
     """
     data = HeteroData()
 
-    data['user'].x = torch.from_numpy(user_attr)
+    data['user'].x = torch.from_numpy(user_attr).to(torch.float32)
     data['user'].n_id = torch.arange(user_attr.shape[0])
 
-    data['app'].x = torch.from_numpy(item_attr)
+    data['app'].x = torch.from_numpy(item_attr).to(torch.float32)
     data['app'].n_id = torch.arange(item_attr.shape[0])
 
-    data['user', 'recommends', 'app'].edge_index = torch.from_numpy(train_ei)
-    data['user', 'recommends', 'app'].edge_label_index = torch.from_numpy(test_ei)
-    data['user', 'recommends', 'app'].edge_label = torch.ones(test_ei.shape[1], dtype=torch.long)
+    data['user', 'recommends', 'app'].edge_index = torch.from_numpy(train_ei).to(torch.int64)
+    data['user', 'recommends', 'app'].edge_label_index = torch.from_numpy(test_ei).to(torch.int64)
+    data['user', 'recommends', 'app'].edge_label = torch.ones(test_ei.shape[1], dtype=torch.int64)
 
     return data
 
