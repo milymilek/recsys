@@ -1,10 +1,11 @@
 import argparse
 import os
+import pickle
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MultiLabelBinarizer
 
-from src.dataset import split_by_time, filter_test
+from src.dataset import split_by_time, filter_set
 
 
 def remap(df, col):
@@ -21,14 +22,18 @@ def listed_attr_to_ohc(df, col='tags'):
 
 
 def featurize_apps(df):
-    for c in ['win', 'mac', 'linux', 'steam_deck']:
+    RATING_COL = ['Mixed', 'Mostly Negative', 'Mostly Positive', 'Overwhelmingly Positive', 'Positive', 'Very Positive']
+    CAT_COL = ['win', 'mac', 'linux', 'steam_deck']
+
+    for c in CAT_COL:
         df[c] = df[c].astype(int)
 
-    rating = pd.get_dummies(df['rating'])
+    rating = pd.get_dummies(df['rating'], columns=RATING_COL)
+    rating = rating.reindex(columns=RATING_COL, fill_value=0.0)
     df = pd.concat([df, rating], axis=1)
 
-    cols = ['app_id', 'win', 'mac', 'linux', 'steam_deck', 'price_original', 'price_final', 'discount',
-            'user_reviews', 'positive_ratio'] + list(rating.columns)
+    cols = ['app_id'] +  CAT_COL + ['price_original', 'price_final', 'discount',
+                                    'user_reviews', 'positive_ratio'] + RATING_COL
 
     return df[cols]
 
@@ -48,8 +53,8 @@ def app_attr_as_numpy(df_tags, df_meta):
     attr_matrix = []
     for (i, tags), (i, meta) in zip(df_tags.iterrows(), df_meta.iterrows()):
         tag = np.zeros(N_TAGS)
-        idx = np.fromstring(tags[TAGS_COL].values[0][1:-1], dtype=int, sep=',')
-        tag[idx] = 1
+        mask = tags[TAGS_COL].values[0]
+        tag[mask] = 1
 
         cat = meta[CAT_COL].values
         cont = meta[CONT_COL].values
@@ -75,7 +80,8 @@ def process():
     dir_art = args.directory + "/" + args.artefact_directory
     os.makedirs(dir_art, exist_ok=True)
 
-    split = args.split
+    supervision_ratio = args.supervision
+    validation_ratio = args.validation
 
     # Read data
     relations = pd.read_csv(os.path.join(dir, 'recommendations.csv'))
@@ -89,17 +95,19 @@ def process():
     relations = relations[relations['is_recommended'] == 1.0]
 
     # Fraction `split` as training set and 1-`split` as test set. Filter out users and items occurring only in test set.
-    relations_train, relations_test = split_by_time(df=relations, col="date", split_point=split)
-    relations_test = filter_test(df_train=relations_train, df_test=relations_test, user_col="user_id", item_col="app_id")
+    relations_train, relations_supervision, relations_valid = split_by_time(df=relations, col="date",
+                                                                           supervision_ratio=supervision_ratio,
+                                                                           validation_ratio=validation_ratio)
+    relations_supervision = filter_set(df=relations_supervision, df_train=relations_train, user_col="user_id", item_col="app_id")
+    relations_valid = filter_set(df=relations_valid, df_train=relations_train, user_col="user_id", item_col="app_id")
     print("> Splitted and filtered")
 
     # Normalize (remap) ids of entities and save mappings.
     user_dict = remap(relations_train, 'user_id')
     item_dict = remap(relations_train, 'app_id')
-    relations_train['user_id'] = relations_train['user_id'].map(user_dict)
-    relations_train['app_id'] = relations_train['app_id'].map(item_dict)
-    relations_test['user_id'] = relations_test['user_id'].map(user_dict)
-    relations_test['app_id'] = relations_test['app_id'].map(item_dict)
+    for rel in [relations_train, relations_supervision, relations_valid]:
+        rel['user_id'] = rel['user_id'].map(user_dict)
+        rel['app_id'] = rel['app_id'].map(item_dict)
     pd.DataFrame.from_dict(user_dict, orient='index').to_csv(os.path.join(dir_art, 'user_dict.csv'))
     pd.DataFrame.from_dict(item_dict, orient='index').to_csv(os.path.join(dir_art, 'item_dict.csv'))
     print("> Remapped")
@@ -126,6 +134,26 @@ def process():
     users = users.sort_values(by=['user_id'])
     print("> Features encoded")
 
+    # Create and store numpy entities attribute matrices
+    app_attr = app_attr_as_numpy(items_meta, items)
+    user_attr = user_attr_as_numpy(users)
+    with open(os.path.join(dir_art, 'app_attr.pkl'), 'wb') as f:
+        pickle.dump(app_attr, f)
+    with open(os.path.join(dir_art, 'user_attr.pkl'), 'wb') as f:
+        pickle.dump(user_attr, f)
+    print("> Attribute matrices created")
+
+    data = {
+        "train_set": relations_train,
+        "supervision_set": relations_supervision,
+        "valid_set": relations_valid,
+        "user_attr": user_attr,
+        "item_attr": app_attr,
+    }
+
+    with open(os.path.join(dir_art, 'data.pkl'), 'wb') as f:
+        pickle.dump(data, f)
+
 
 def get_args():
     """Parse commandline arguments."""
@@ -133,7 +161,8 @@ def get_args():
 
     parser.add_argument('--directory', type=str)
     parser.add_argument('--artefact_directory', type=str)
-    parser.add_argument('--split', type=float, default=0.7)
+    parser.add_argument('--supervision', type=float, default=0.2)
+    parser.add_argument('--validation', type=float, default=0.3)
 
     return parser.parse_args()
 
