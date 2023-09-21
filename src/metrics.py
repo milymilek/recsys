@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def precision_k(reco_relevance, relevance, k=10):
     v = np.asarray(relevance.sum(axis=1).flatten(), dtype=int)[0].clip(1, k)
     bool_2d = np.vstack([np.concatenate((np.ones(i), np.zeros(k - i))) for i in v]).astype(bool)

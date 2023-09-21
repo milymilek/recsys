@@ -52,17 +52,21 @@ def app_attr_as_numpy(df_tags, df_meta):
 
     attr_matrix = []
     for (i, tags), (i, meta) in zip(df_tags.iterrows(), df_meta.iterrows()):
-        tag = np.zeros(N_TAGS)
-        mask = tags[TAGS_COL].values[0]
-        tag[mask] = 1
+        # tag = np.zeros(N_TAGS)
+        # mask = tags[TAGS_COL].values[0]
+        # tag[mask] = 1
+        tag = tags[TAGS_COL].values[0]
 
-        cat = meta[CAT_COL].values
-        cont = meta[CONT_COL].values
+        cat = list(meta[CAT_COL].values)
+        cont = list(meta[CONT_COL].values)
 
-        v = np.concatenate((tag, cat, cont))
-        attr_matrix.append(v)
+        #v = np.concatenate((tag, cat, cont))
+        v = cat + cont
+        v.append(tag)
+        attr_matrix.append(np.array(v, dtype=object))
 
-    return np.vstack(attr_matrix)
+    #return np.vstack(attr_matrix)
+    return np.array(attr_matrix, dtype=object)
 
 
 def user_attr_as_numpy(df_user):
