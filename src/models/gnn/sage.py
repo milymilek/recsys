@@ -24,7 +24,7 @@ class Classifier(torch.nn.Module):
 
 class Model(torch.nn.Module):
     def __init__(self, entities, hidden_channels, out_channels, metadata):
-        super().__init__()
+        super().__init__() 
 
         self.user_emb = torch.nn.Embedding(entities[0].x.shape[0], hidden_channels)
         self.app_emb = torch.nn.Embedding(entities[1].x.shape[0], hidden_channels)
