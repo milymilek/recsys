@@ -21,3 +21,4 @@ class DeepFM(nn.Module):
 
         x = self.fm(x_sparse) + self.dnn(x_sparse_dense)
         return x
+
