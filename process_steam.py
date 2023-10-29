@@ -1,168 +1,157 @@
 import argparse
 import os
 import pickle
+from typing import List
+
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import MultiLabelBinarizer
 
-from src.dataset import split_by_time, filter_set
+from src.data.datastore import DataStore
+from src.data.dataframe import DataFrame, SplitDataFrame, IDataFrame
+from src.data.utils import split_by_time, filter_set, tabular2csr
+from src.preprocessing.workflow import Workflow
+from src.preprocessing.preprocess import sparse, process_num, process_cat, process_multilabel
 
+ITEM_FEATS = {
+    "CAT": ['win', 'mac', 'linux', 'steam_deck', 'rating', ],
+    "NUM": ["user_reviews", "price_final", "price_original", "discount",],
+    "MULTILABEL": ['tags',]
+}
 
-def remap(df, col):
-    idx = df[col].unique()
-    new_idx = np.arange(idx.size)
-    return {i: ni for i, ni in zip(idx, new_idx)}
-
-
-def listed_attr_to_ohc(df, col='tags'):
-    mlb = MultiLabelBinarizer()
-    mlb.fit_transform(df[col])
-    tag_map = {cat: idx for idx, cat in enumerate(mlb.classes_)}
-    return df[col].apply(lambda x: [tag_map[c] for c in x]), tag_map
-
-
-def featurize_apps(df):
-    RATING_COL = ['Mixed', 'Mostly Negative', 'Mostly Positive', 'Overwhelmingly Positive', 'Positive', 'Very Positive']
-    CAT_COL = ['win', 'mac', 'linux', 'steam_deck']
-
-    for c in CAT_COL:
-        df[c] = df[c].astype(int)
-
-    rating = pd.get_dummies(df['rating'], columns=RATING_COL)
-    rating = rating.reindex(columns=RATING_COL, fill_value=0.0)
-    df = pd.concat([df, rating], axis=1)
-
-    cols = ['app_id'] +  CAT_COL + ['price_original', 'price_final', 'discount',
-                                    'user_reviews', 'positive_ratio'] + RATING_COL
-
-    return df[cols]
+USER_FEATS = {
+    "NUM": ["products", "reviews",]
+}
 
 
-def app_attr_as_numpy(df_tags, df_meta):
-    N_TAGS = 425
-    N_CAT = 10
-    N_CONT = 5
+@sparse
+def apply_map(ds: DataStore, cols: List[str], **kwargs) -> (IDataFrame, List):
+    cols = cols[0]
+    mapping = ds.mapping[cols]
+    df = ds.dataframe
 
-    TAGS_COL = ['tags_id']
-    CAT_COL = ['win', 'mac', 'linux', 'steam_deck', 'Mixed', 'Mostly Negative', 'Mostly Positive',
-               'Overwhelmingly Positive', 'Positive', 'Very Positive']
-    CONT_COL = ['positive_ratio', 'user_reviews', 'price_original', 'price_final', 'discount']
+    def apply_one(df: pd.DataFrame):
+        df[cols] = df[cols].map(mapping)
+        df = df.dropna()
+        df[cols] = df[cols].astype('int64')
+        df = df.sort_values(by=[cols])
+        df = df.reset_index(drop=True)
+        return df
 
-    N_APPS = df_tags.shape[0]
-
-    attr_matrix = []
-    for (i, tags), (i, meta) in zip(df_tags.iterrows(), df_meta.iterrows()):
-        # tag = np.zeros(N_TAGS)
-        # mask = tags[TAGS_COL].values[0]
-        # tag[mask] = 1
-        tag = tags[TAGS_COL].values[0]
-
-        cat = list(meta[CAT_COL].values)
-        cont = list(meta[CONT_COL].values)
-
-        #v = np.concatenate((tag, cat, cont))
-        v = cat + cont
-        v.append(tag)
-        attr_matrix.append(np.array(v, dtype=object))
-
-    #return np.vstack(attr_matrix)
-    return np.array(attr_matrix, dtype=object)
+    df.apply(apply_one)
+    cols = list(zip([cols], [None] * 1))
+    return df, cols
 
 
-def user_attr_as_numpy(df_user):
-    N_CONT = 2
-    CONT_COL = ['products', 'reviews']
+def filter_neg_relations(ds: DataStore, cols: List[str], **kwargs) -> (IDataFrame, List):
+    """Filter negative relations to stick to PyG convention"""
+    cols = cols[0]
+    df = ds.dataframe.repr_df()
 
-    return df_user[CONT_COL].values
+    df[cols] = df[cols].astype(float)
+    df = df[df[cols] == 1.0]
+
+    df = DataFrame(df)
+    return df, []
+
+
+def filter_non_train_relations(ds: DataStore) -> (IDataFrame, List):
+    df = ds.dataframe
+    df.supervision = filter_set(df=df.supervision, df_train=df.train, user_col="user_id", item_col="app_id")
+    df.valid = filter_set(df=df.valid, df_train=df.train, user_col="user_id", item_col="app_id")
+
+    df = SplitDataFrame(df.train, df.supervision, df.valid)
+    return df, []
+
+
+def create_map(ds: DataStore, cols: List[str], **kwargs) -> dict:
+    def create_map_col(df: pd.DataFrame, col: str):
+        idx = df[col].unique()
+        new_idx = np.arange(idx.size)
+        return {i: ni for i, ni in zip(idx, new_idx)}
+
+    train_df = ds.dataframe.repr_df()
+    dict = {c: create_map_col(train_df, c) for c in cols}
+    return dict
 
 
 def process():
-    """Prepare Steam dataset to training and evaluation process."""
+    """Prepare Steam dataset to training and evaluation procedures."""
     args = get_args()
 
     dir = args.directory
-    dir_art = args.directory + "/" + args.artefact_directory
+    dir_art = dir + "/" + args.artefact_directory
     os.makedirs(dir_art, exist_ok=True)
 
     supervision_ratio = args.supervision
     validation_ratio = args.validation
 
     # Read data
-    relations = pd.read_csv(os.path.join(dir, 'recommendations.csv'))
-    users = pd.read_csv(os.path.join(dir, 'users.csv'))
-    items = pd.read_csv(os.path.join(dir, 'games.csv'))
-    items_meta = pd.read_json(os.path.join(dir, 'games_metadata.json'), lines=True)
+    relations_ds = DataStore(os.path.join(dir, 'recommendations.csv'), read_method='csv')
+    users_ds = DataStore(os.path.join(dir, 'users.csv'), read_method='csv')
+    items_ds = DataStore(os.path.join(dir, 'items.csv'), read_method='csv')
     print("> Data read")
 
-    # Filter negative relations to stick to PyG convention
-    relations['is_recommended'] = relations['is_recommended'].astype(float)
-    relations = relations[relations['is_recommended'] == 1.0]
+    workflow_relations = Workflow(pipe=[
+        (filter_neg_relations, {"cols": ["is_recommended"]}),
+        (split_by_time, {"cols": ["date"], "supervision_ratio": supervision_ratio, "validation_ratio": validation_ratio}),
+        (filter_non_train_relations, {}),
+        (create_map, {"cols": ["user_id", "app_id"], "map_func": True}),
+        (apply_map, {"cols": ["user_id"]}),
+        (apply_map, {"cols": ["app_id"]})
+    ])
+    workflow_relations.fit(relations_ds)
+    workflow_relations.transform()
+    print("> Workflow Relations finished")
 
-    # Fraction `split` as training set and 1-`split` as test set. Filter out users and items occurring only in test set.
-    relations_train, relations_supervision, relations_valid = split_by_time(df=relations, col="date",
-                                                                           supervision_ratio=supervision_ratio,
-                                                                           validation_ratio=validation_ratio)
-    relations_supervision = filter_set(df=relations_supervision, df_train=relations_train, user_col="user_id", item_col="app_id")
-    relations_valid = filter_set(df=relations_valid, df_train=relations_train, user_col="user_id", item_col="app_id")
-    print("> Splitted and filtered")
+    items_ds.mapping = relations_ds.mapping
 
-    # Normalize (remap) ids of entities and save mappings.
-    user_dict = remap(relations_train, 'user_id')
-    item_dict = remap(relations_train, 'app_id')
-    for rel in [relations_train, relations_supervision, relations_valid]:
-        rel['user_id'] = rel['user_id'].map(user_dict)
-        rel['app_id'] = rel['app_id'].map(item_dict)
-    pd.DataFrame.from_dict(user_dict, orient='index').to_csv(os.path.join(dir_art, 'user_dict.csv'))
-    pd.DataFrame.from_dict(item_dict, orient='index').to_csv(os.path.join(dir_art, 'item_dict.csv'))
-    print("> Remapped")
+    workflow_items = Workflow(pipe=[
+        (apply_map, {"cols": ["app_id"]}),
+        (process_num, {"cols": ITEM_FEATS['NUM']}),
+        (process_cat, {"cols": ITEM_FEATS['CAT']}),
+        (process_multilabel, {"cols": ITEM_FEATS['MULTILABEL']})
+    ])
+    workflow_items.fit(items_ds)
+    workflow_items.transform()
+    print("> Workflow Items finished")
 
-    # Extract `tags` from items included in training set by one-hot encoding
-    items_meta['app_id'] = items_meta['app_id'].map(item_dict)
-    items_meta = items_meta.dropna()
-    items_meta['app_id'] = items_meta['app_id'].astype(int)
-    items_meta = items_meta.sort_values(by=['app_id'])
-    items_meta['tags_id'], tags_dict = listed_attr_to_ohc(df=items_meta, col='tags')
-    pd.DataFrame.from_dict(tags_dict, orient='index').to_csv(os.path.join(dir_art, 'tags_dict.csv'))
-    print("> Tags encoded")
+    users_ds.mapping = relations_ds.mapping
 
-    # Extract continuous and categorical features
-    items['app_id'] = items['app_id'].map(item_dict)
-    items = items.dropna()
-    items['app_id'] = items['app_id'].astype(int)
-    items = items.sort_values(by=['app_id'])
-    items = featurize_apps(items)
+    workflow_users = Workflow(pipe=[
+        (apply_map, {"cols": ["user_id"]}),
+        (process_num, {"cols": USER_FEATS['NUM']})
+    ])
+    workflow_users.fit(users_ds)
+    workflow_users.transform()
+    print("> Workflow Users finished")
 
-    users['user_id'] = users['user_id'].map(user_dict)
-    users = users.dropna()
-    users['user_id'] = users['user_id'].astype(int)
-    users = users.sort_values(by=['user_id'])
-    print("> Features encoded")
-
-    # Create and store numpy entities attribute matrices
-    app_attr = app_attr_as_numpy(items_meta, items)
-    user_attr = user_attr_as_numpy(users)
-    with open(os.path.join(dir_art, 'app_attr.pkl'), 'wb') as f:
-        pickle.dump(app_attr, f)
-    with open(os.path.join(dir_art, 'user_attr.pkl'), 'wb') as f:
-        pickle.dump(user_attr, f)
-    print("> Attribute matrices created")
+    # Create sparse csr matrix representation of tabular user-app relations
+    train_csr, valid_csr = tabular2csr(
+        train=workflow_relations.ds.dataframe.train.values.T,
+        supervision=workflow_relations.ds.dataframe.supervision.values.T,
+        valid=workflow_relations.ds.dataframe.valid.values.T
+    )
+    print("> Sparse adjacency matrices created")
 
     data = {
-        "train_set": relations_train,
-        "supervision_set": relations_supervision,
-        "valid_set": relations_valid,
-        "user_attr": user_attr,
-        "item_attr": app_attr,
+        "relations_datastore": workflow_relations.ds,
+        "users_datastore": workflow_users.ds,
+        "items_datastore": workflow_items.ds
+    }
+    matrix = {
+        "train_csr": train_csr,
+        "valid_csr": valid_csr
     }
 
     with open(os.path.join(dir_art, 'data.pkl'), 'wb') as f:
         pickle.dump(data, f)
+    with open(os.path.join(dir_art, 'matrix.pkl'), 'wb') as f:
+        pickle.dump(matrix, f)
 
 
 def get_args():
     """Parse commandline arguments."""
     parser = argparse.ArgumentParser()
-
     parser.add_argument('--directory', type=str)
     parser.add_argument('--artefact_directory', type=str)
     parser.add_argument('--supervision', type=float, default=0.2)

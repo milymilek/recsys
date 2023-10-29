@@ -1,15 +1,17 @@
+from typing import List
+
 import numpy as np
-import pandas as pd
-import pickle
 import torch
 import torch_geometric.transforms as T
 from torch_geometric.data import HeteroData
 from torch_geometric.loader import LinkNeighborLoader, NeighborLoader
-from torch_geometric.utils import to_scipy_sparse_matrix
 from scipy.sparse import csr_matrix
 
+from src.data.dataframe import DataFrame, SplitDataFrame, IDataFrame
+from src.data.datastore import DataStore
 
-def split_by_time(df: pd.DataFrame, col: str, supervision_ratio: float=0.2, validation_ratio: float=0.3):
+
+def split_by_time(ds: DataStore, cols: List[str], supervision_ratio: float=0.2, validation_ratio: float=0.3) -> (IDataFrame, List):
     """
     Sort and split dataframe into train and test sets on given split point.
 
@@ -21,7 +23,10 @@ def split_by_time(df: pd.DataFrame, col: str, supervision_ratio: float=0.2, vali
     Returns:
         Tuple of (train_set, test_set) where train contains rows before `date`
     """
-    df_sorted = df.sort_values(by=col)
+    cols = cols[0]
+    df = ds.dataframe.repr_df()
+
+    df_sorted = df.sort_values(by=cols)
     split_training = 1.0 - supervision_ratio - validation_ratio
     training_split_point = int(df_sorted.shape[0] * split_training)
     supervision_split_point = int(df_sorted.shape[0] * (split_training + supervision_ratio))
@@ -30,7 +35,8 @@ def split_by_time(df: pd.DataFrame, col: str, supervision_ratio: float=0.2, vali
     df_supervision = df_sorted[training_split_point:supervision_split_point]
     df_valid = df_sorted[supervision_split_point:]
 
-    return df_train, df_supervision, df_valid
+    split_df = SplitDataFrame(train=df_train, supervision=df_supervision, valid=df_valid)
+    return split_df, []
 
 
 def filter_set(df, df_train, user_col, item_col):
@@ -38,37 +44,6 @@ def filter_set(df, df_train, user_col, item_col):
     df_filter = df[(df[user_col].isin(all_users)) & (df[item_col].isin(all_items))]
 
     return df_filter
-
-
-def load_data_from_csv(path_relations: str, path_user_attr: str = None, path_item_attr: str = None):
-    """
-    Loads data from a CSV file into a Pandas DataFrame.
-    Csv file requirements:
-        - `user_id` - int
-        - `app_id` - int
-        - `is_recommended` - int [0/1]
-
-    Parameters:
-    - path (str): The file path of the CSV file to load.
-
-    Returns:
-    - df (pd.DataFrame): The loaded data as a Pandas DataFrame.
-    """
-    relations = pd.read_csv(path_relations, index_col=[0])[['user_id', 'app_id']].values
-
-    if path_user_attr:
-        with open(path_user_attr, 'rb') as f:
-            user_attr = pickle.load(f)
-    else:
-        user_attr = np.zeros(relations[:, 0].nunique())
-
-    if path_item_attr:
-        with open(path_item_attr, 'rb') as f:
-            item_attr = pickle.load(f)
-    else:
-        item_attr = np.zeros(relations[:, 1].nunique())
-
-    return relations, user_attr, item_attr
 
 
 def load_graph(train_ei: np.array, test_ei: np.array, user_attr: np.array, item_attr: np.array) -> HeteroData:
@@ -118,20 +93,6 @@ def transform_graph(data: HeteroData) -> HeteroData:
     return transform(data)
 
 
-def split_graph(data: HeteroData) -> HeteroData:
-    random_split = T.RandomLinkSplit(
-        num_val=0.3,
-        num_test=0.0,
-        add_negative_train_samples=False,
-        neg_sampling_ratio=2.0,
-        disjoint_train_ratio=0.3,
-        edge_types=('user', 'recommends', 'app'),
-        rev_edge_types=('app', 'rev_recommends', 'user')
-    )
-
-    return random_split(data)
-
-
 def init_edge_loader(data: HeteroData, **kwargs) -> NeighborLoader:
     """
     Initializes a neighbor loader for edge-based data in a heterogeneous graph.
@@ -166,19 +127,15 @@ def init_edge_loader(data: HeteroData, **kwargs) -> NeighborLoader:
     return loader
 
 
-def get_sparse_adj_matr(data):
-    # Extract sparse adjacency matrix with message passing edges
-    n_users = data['user'].x.shape[0]
-    n_items = data['app'].x.shape[0]
+def tabular2csr(train, valid, supervision=None):
+    if supervision is not None:
+        train = np.concatenate([train, supervision], axis=1)
 
-    mp_edges = data['user', 'recommends', 'app']['edge_index']
-    mp_ones = torch.ones(mp_edges.shape[1])
-    val_edges = data['user', 'recommends', 'app']['edge_label_index']
-    val_ones = torch.ones(val_edges.shape[1])
+    n_users, n_items = np.unique(train[0]).size, np.unique(train[1]).size
 
-    mp_matrix = csr_matrix((mp_ones, (mp_edges[0], mp_edges[1])), shape=(n_users, n_items))
-    val_matrix = csr_matrix((val_ones, (val_edges[0], val_edges[1])), shape=(n_users, n_items))
+    train_csr = csr_matrix((np.ones_like(train[0]), (train[0], train[1])), shape=(n_users, n_items))
+    valid_csr = csr_matrix((np.ones_like(valid[0]), (valid[0], valid[1])), shape=(n_users, n_items))
 
-    return mp_matrix, val_matrix
+    return train_csr, valid_csr
 
 
