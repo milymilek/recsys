@@ -2,8 +2,8 @@ import pandas as pd
 from typing import List, Tuple, Callable
 from functools import partial
 
-from src.data.datastore import DataStore
-from src.features.scheme import FeatureScheme
+from data.datastore import DataStore
+from features.scheme import FeatureScheme
 
 
 class Workflow:

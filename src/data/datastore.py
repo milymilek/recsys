@@ -1,7 +1,7 @@
 import pandas as pd
 
-from src.data.dataframe import IDataFrame, DataFrame
-from src.features.scheme import FeatureScheme
+from data.dataframe import IDataFrame, DataFrame
+from features.scheme import FeatureScheme
 
 
 class DataStore:

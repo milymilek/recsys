@@ -1,6 +1,6 @@
 import pickle
 
-from src.features.features import VarlenFeat
+from features.features import VarlenFeat
 
 
 class FeatureScheme:

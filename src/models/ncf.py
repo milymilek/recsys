@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from src.layers import MLP, EmbeddingNet
+from layers import MLP, EmbeddingNet
 
 
 class NCF(nn.Module):

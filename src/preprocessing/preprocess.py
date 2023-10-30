@@ -4,9 +4,9 @@ from typing import List
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, MultiLabelBinarizer
 
-from src.data.dataframe import DataFrame, IDataFrame
-from src.data.datastore import DataStore
-from src.features.features import SparseFeat, DenseFeat, VarlenFeat
+from data.dataframe import DataFrame, IDataFrame
+from data.datastore import DataStore
+from features.features import SparseFeat, DenseFeat, VarlenFeat
 
 
 def sparse(func):

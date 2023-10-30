@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from src.layers import MLP, EmbeddingNet, CrossProductNet
+from layers import MLP, EmbeddingNet, CrossProductNet
 
 
 class DeepFM(nn.Module):

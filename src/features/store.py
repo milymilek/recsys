@@ -1,6 +1,6 @@
 import torch
 
-from src.features.features import SparseFeat, DenseFeat, VarlenFeat
+from features.features import SparseFeat, DenseFeat, VarlenFeat
 
 
 # TODO: start+=feat['max_len'] powoduje blad, do sprawdzenia

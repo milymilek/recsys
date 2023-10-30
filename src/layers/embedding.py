@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from src.features.features import SparseFeat
+from features.features import SparseFeat
 
 
 class EmbeddingNet(nn.Module):

@@ -7,8 +7,8 @@ from torch_geometric.data import HeteroData
 from torch_geometric.loader import LinkNeighborLoader, NeighborLoader
 from scipy.sparse import csr_matrix
 
-from src.data.dataframe import DataFrame, SplitDataFrame, IDataFrame
-from src.data.datastore import DataStore
+from data.dataframe import DataFrame, SplitDataFrame, IDataFrame
+from data.datastore import DataStore
 
 
 def split_by_time(ds: DataStore, cols: List[str], supervision_ratio: float=0.2, validation_ratio: float=0.3) -> (IDataFrame, List):
