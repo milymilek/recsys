@@ -3,7 +3,7 @@ import os
 import pickle
 import numpy as np
 
-from src.data.utils import load_graph, transform_graph
+from data.utils import load_graph, transform_graph
 
 
 def build_graph():

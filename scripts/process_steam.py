@@ -6,11 +6,11 @@ from typing import List
 import numpy as np
 import pandas as pd
 
-from src.data.datastore import DataStore
-from src.data.dataframe import DataFrame, SplitDataFrame, IDataFrame
-from src.data.utils import split_by_time, filter_set, tabular2csr
-from src.preprocessing.workflow import Workflow
-from src.preprocessing.preprocess import sparse, process_num, process_cat, process_multilabel
+from data.datastore import DataStore
+from data.dataframe import DataFrame, SplitDataFrame, IDataFrame
+from data.utils import split_by_time, filter_set, tabular2csr
+from preprocessing.workflow import Workflow
+from preprocessing.preprocess import sparse, process_num, process_cat, process_multilabel
 
 ITEM_FEATS = {
     "CAT": ['win', 'mac', 'linux', 'steam_deck', 'rating', ],
