@@ -12,7 +12,7 @@ from features.features import SparseFeat, DenseFeat, VarlenFeat
 def sparse(func):
     def wrapper(*args, **kwargs):
         df, cols = func(*args, **kwargs)
-        cols = [SparseFeat(name=c, map=map, num_emb=df.repr_df()[c].nunique(), index=None) for c, map in cols]
+        cols = [SparseFeat(name=c, map=map, num_emb=df.repr_df()[c].nunique(), index=None, pad_index=None) for c, map in cols]
         return df, cols
     return wrapper
 
@@ -20,7 +20,7 @@ def sparse(func):
 def dense(func):
     def wrapper(*args, **kwargs):
         df, cols = func(*args, **kwargs)
-        cols = [DenseFeat(name=c, index=None) for c in cols]
+        cols = [DenseFeat(name=c, index=None, pad_index=None) for c in cols]
         return df, cols
     return wrapper
 
@@ -28,8 +28,15 @@ def dense(func):
 def varlen(func):
     def wrapper(*args, **kwargs):
         df, cols = func(*args, **kwargs)
-        cols = [VarlenFeat(name=name, vals=c, num_emb=len(c), max_len=df.repr_df()[c].sum(axis=1).max(), index=None) for name, c in cols]
+        cols = [VarlenFeat(name=name, vals=c, num_emb=len(c), max_len=df.repr_df()[c].sum(axis=1).max(), index=None, pad_index=None) for name, c in cols]
         return df, cols
+    return wrapper
+
+
+def no_feat(func):
+    def wrapper(*args, **kwargs):
+        df, _ = func(*args, **kwargs)
+        return df, []
     return wrapper
 
 
@@ -49,6 +56,7 @@ def process_cat(ds: DataStore, cols, **kwargs) -> (IDataFrame, List):
     for c in cols:
         df[c] = le.fit_transform(df[c])
         maps.append({k: v for k,v in enumerate(le.classes_)})
+    df[cols] = df[cols].astype('int32')
     df = DataFrame(df)
     cols = list(zip(cols, maps))
     return df, cols
@@ -62,7 +70,7 @@ def process_multilabel(ds: DataStore, cols, **kwargs) -> (IDataFrame, List):
     mlb = MultiLabelBinarizer()
     mlb_arr = mlb.fit_transform(df[cols].apply(ast.literal_eval))
     mlb_df = pd.DataFrame(mlb_arr, columns=mlb.classes_, dtype='int64')
-    df = pd.concat([df, mlb_df], axis=1)
+    df = pd.concat([df, mlb_df], axis=1).reindex(df.index)
     df = df.drop(columns=cols)
 
     df = DataFrame(df)

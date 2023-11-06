@@ -10,7 +10,7 @@ from data.datastore import DataStore
 from data.dataframe import DataFrame, SplitDataFrame, IDataFrame
 from data.utils import split_by_time, filter_set, tabular2csr
 from preprocessing.workflow import Workflow
-from preprocessing.preprocess import sparse, process_num, process_cat, process_multilabel
+from preprocessing.preprocess import sparse, no_feat, process_num, process_cat, process_multilabel
 
 ITEM_FEATS = {
     "CAT": ['win', 'mac', 'linux', 'steam_deck', 'rating', ],
@@ -25,6 +25,7 @@ USER_FEATS = {
 
 @sparse
 def apply_map(ds: DataStore, cols: List[str], **kwargs) -> (IDataFrame, List):
+    move_col_to_idx = kwargs.get('move_col_to_idx')
     cols = cols[0]
     mapping = ds.mapping[cols]
     df = ds.dataframe
@@ -35,6 +36,31 @@ def apply_map(ds: DataStore, cols: List[str], **kwargs) -> (IDataFrame, List):
         df[cols] = df[cols].astype('int64')
         df = df.sort_values(by=[cols])
         df = df.reset_index(drop=True)
+        return df
+
+    df.apply(apply_one)
+    if move_col_to_idx:
+        df.df.set_index(cols, drop=True, inplace=True)
+    cols = list(zip([cols], [None] * 1))
+    return df, cols
+
+
+@no_feat
+def apply_map_no_feat(ds: DataStore, cols: List[str], **kwargs) -> (IDataFrame, List):
+    move_col_to_idx = kwargs.get('move_col_to_idx')
+    cols = cols[0]
+    mapping = ds.mapping[cols]
+    df = ds.dataframe
+
+    def apply_one(df: pd.DataFrame):
+        df[cols] = df[cols].map(mapping)
+        df = df.dropna(subset=cols)
+        df[cols] = df[cols].astype('int64')
+        df = df.sort_values(by=[cols])
+        df = df.reset_index(drop=True)
+        if move_col_to_idx:
+            df = df.set_index(cols, drop=True)
+
         return df
 
     df.apply(apply_one)
@@ -97,7 +123,7 @@ def process():
         (filter_non_train_relations, {}),
         (create_map, {"cols": ["user_id", "app_id"], "map_func": True}),
         (apply_map, {"cols": ["user_id"]}),
-        (apply_map, {"cols": ["app_id"]})
+        (apply_map, {"cols": ["app_id"]}),
     ])
     workflow_relations.fit(relations_ds)
     workflow_relations.transform()
@@ -106,7 +132,7 @@ def process():
     items_ds.mapping = relations_ds.mapping
 
     workflow_items = Workflow(pipe=[
-        (apply_map, {"cols": ["app_id"]}),
+        (apply_map_no_feat, {"cols": ["app_id"], "move_col_to_idx": True}),
         (process_num, {"cols": ITEM_FEATS['NUM']}),
         (process_cat, {"cols": ITEM_FEATS['CAT']}),
         (process_multilabel, {"cols": ITEM_FEATS['MULTILABEL']})
@@ -118,7 +144,7 @@ def process():
     users_ds.mapping = relations_ds.mapping
 
     workflow_users = Workflow(pipe=[
-        (apply_map, {"cols": ["user_id"]}),
+        (apply_map_no_feat, {"cols": ["user_id"], "move_col_to_idx": True}),
         (process_num, {"cols": USER_FEATS['NUM']})
     ])
     workflow_users.fit(users_ds)
