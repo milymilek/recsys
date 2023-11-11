@@ -6,6 +6,7 @@ authors = ["Milosz <milosz.hanczyk01@gmail.com>"]
 readme = "README.md"
 packages = [
     {include = "data", from = "src"},
+    {include = "dataset", from = "src"},
     {include = "metrics", from = "src"},
     {include = "preprocessing", from = "src"},
     {include = "features", from = "src"},
@@ -34,6 +35,8 @@ jupyter = "^1.0.0"
 
 [tool.poetry.scripts]
 process_steam = "scripts.process_steam:process"
+train = "scripts.train:train"
+eval = "scripts.eval:evaluate"
 
 [[tool.poetry.source]]
 name = "pytorch"
