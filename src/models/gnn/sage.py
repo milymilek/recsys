@@ -22,13 +22,14 @@ class Classifier(torch.nn.Module):
         return (x_user * x_app).sum(dim=-1)
 
 
-class Model(torch.nn.Module):
-    def __init__(self, entities, hidden_channels, out_channels, metadata):
+class GraphSAGE(torch.nn.Module):
+    def __init__(self, entities_shapes, hidden_channels, out_channels, metadata):
         super().__init__() 
 
-        self.user_emb = torch.nn.Embedding(entities[0].x.shape[0], hidden_channels)
-        self.app_emb = torch.nn.Embedding(entities[1].x.shape[0], hidden_channels)
-        self.app_lin = torch.nn.Linear(entities[1].x.shape[1], hidden_channels)
+        self.user_emb = torch.nn.Embedding(entities_shapes['user'][0], hidden_channels)
+        self.user_lin = torch.nn.Linear(entities_shapes['user'][1], hidden_channels)
+        self.app_emb = torch.nn.Embedding(entities_shapes['app'][0], hidden_channels)
+        self.app_lin = torch.nn.Linear(entities_shapes['app'][1], hidden_channels)
 
         self.gnn = GNN(hidden_channels=hidden_channels, out_channels=out_channels)
         self.gnn = nn.to_hetero(self.gnn, metadata=metadata, aggr='sum')
@@ -37,7 +38,7 @@ class Model(torch.nn.Module):
 
     def forward(self, batch):
         x_dict = {
-            "user": self.user_emb(batch['user'].n_id),
+            "user": self.user_emb(batch['user'].n_id) + self.user_lin(batch['user'].x),
             "app": self.app_emb(batch['app'].n_id) + self.app_lin(batch['app'].x),
         }
 

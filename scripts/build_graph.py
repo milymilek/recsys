@@ -2,6 +2,7 @@ import argparse
 import os
 import pickle
 import numpy as np
+import pandas as pd
 
 from data.utils import load_graph, transform_graph
 
@@ -15,13 +16,13 @@ def build_graph():
     item_col = args.item_col
 
     with open(os.path.join(dir_art, 'data.pkl'), "rb") as f:
-        data = pickle.load(f)
+        data = pd.read_pickle(f)
 
-    train_set = data['train_set'][[user_col, item_col]].values.T
-    supervision_set = data['supervision_set'][[user_col, item_col]].values.T
-    valid_set = data['valid_set'][[user_col, item_col]].values.T
-    user_attr = data['user_attr']
-    item_attr = data['item_attr']
+    train_set = data['relations_datastore'].dataframe.train.values.T
+    supervision_set = data['relations_datastore'].dataframe.supervision.values.T
+    valid_set = data['relations_datastore'].dataframe.valid.values.T
+    item_attr = data['items_datastore'].dataframe.df.values
+    user_attr = data['users_datastore'].dataframe.df.values
 
     train_data = load_graph(train_ei=train_set, test_ei=supervision_set, user_attr=user_attr, item_attr=item_attr)
     valid_data = load_graph(train_ei=np.concatenate([train_set, supervision_set], axis=1),
@@ -39,6 +40,7 @@ def build_graph():
 
     with open(os.path.join(dir_art, "graph.pkl"), "wb") as f:
         pickle.dump(graph, f)
+    print("> Graph Saved")
 
 
 def get_args():

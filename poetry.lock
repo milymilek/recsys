@@ -3213,6 +3213,59 @@ modelhub = ["huggingface_hub"]
 test = ["onnx", "onnxruntime", "pytest", "pytest-cov"]
 
 [[package]]
+name = "torch-scatter"
+version = "2.1.2+pt20cu118"
+description = "PyTorch Extension Library of Optimized Scatter Operations"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "torch_scatter-2.1.2+pt20cu118-cp310-cp310-linux_x86_64.whl", hash = "sha256:314fac6f9bb1fa9e2311fbcfab1e6c4d1f28b10212278de04ae5d94e848a7f1b"},
+    {file = "torch_scatter-2.1.2+pt20cu118-cp310-cp310-win_amd64.whl", hash = "sha256:29437799ec390b108022ee1ac51de9c48c2adc10e2607d289d80fd32bf4c855e"},
+    {file = "torch_scatter-2.1.2+pt20cu118-cp311-cp311-linux_x86_64.whl", hash = "sha256:6e9e7f47bdd53268ec2c5df9007c729b2a5ab1c7d47746d2dfcc3bc5ac589c5b"},
+    {file = "torch_scatter-2.1.2+pt20cu118-cp311-cp311-win_amd64.whl", hash = "sha256:7876968f4142ed7eaaeef4df104819e92c75f11eec2635b02700c23681d1299f"},
+    {file = "torch_scatter-2.1.2+pt20cu118-cp38-cp38-linux_x86_64.whl", hash = "sha256:9a9239b9f908b68530ae15986a345c9c3bc1d81a34264bda7ddd014f61b9da15"},
+    {file = "torch_scatter-2.1.2+pt20cu118-cp38-cp38-win_amd64.whl", hash = "sha256:cbfb47974349abe0d4cfc33ffaa7c6e461369989e2c08313ab5b5d6609953882"},
+    {file = "torch_scatter-2.1.2+pt20cu118-cp39-cp39-linux_x86_64.whl", hash = "sha256:269a5abd09a4270203b7b570bb2897295e54a6234ae6e893938871315444a3c6"},
+    {file = "torch_scatter-2.1.2+pt20cu118-cp39-cp39-win_amd64.whl", hash = "sha256:45f7181756db0a3baa19e91af5e63a857d7bce4508c7bf27b5c45396474ab490"},
+]
+
+[package.extras]
+test = ["pytest", "pytest-cov"]
+
+[package.source]
+type = "legacy"
+url = "https://data.pyg.org/whl/torch-2.0.0+cu118.html"
+reference = "torch-sparse"
+
+[[package]]
+name = "torch-sparse"
+version = "0.6.18+pt20cu118"
+description = "PyTorch Extension Library of Optimized Autograd Sparse Matrix Operations"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "torch_sparse-0.6.18+pt20cu118-cp310-cp310-linux_x86_64.whl", hash = "sha256:9b0a4080f7a5e34a6b989708e7eca998051a5ed7c847d8b58cef543b9158b47d"},
+    {file = "torch_sparse-0.6.18+pt20cu118-cp310-cp310-win_amd64.whl", hash = "sha256:11ce05721527de989fc8a485037c678d82da2e6160aa4669dd6315f9ecf429ad"},
+    {file = "torch_sparse-0.6.18+pt20cu118-cp311-cp311-linux_x86_64.whl", hash = "sha256:c8d57a7409f2e37c3d48255d856ef4ea9b581e3b269a254a2a7538ed83a635ee"},
+    {file = "torch_sparse-0.6.18+pt20cu118-cp311-cp311-win_amd64.whl", hash = "sha256:519a4f7abaad863bf20f8e4d8f32660b22ffd85ea6f4141f34f0f4cdd6a04604"},
+    {file = "torch_sparse-0.6.18+pt20cu118-cp38-cp38-linux_x86_64.whl", hash = "sha256:ce71ed68e38fac95612bec8b76caedecb7124496bf43ea9c9f6c646f42d3badb"},
+    {file = "torch_sparse-0.6.18+pt20cu118-cp38-cp38-win_amd64.whl", hash = "sha256:cf29bbbdae55af15a068190dbec7a013f954ef972037dc14081792a77a1f2e59"},
+    {file = "torch_sparse-0.6.18+pt20cu118-cp39-cp39-linux_x86_64.whl", hash = "sha256:5299204509558a8519851dd69bd55bddf8612a218c7673373792cd57634764f3"},
+    {file = "torch_sparse-0.6.18+pt20cu118-cp39-cp39-win_amd64.whl", hash = "sha256:fb8a92ab83555f928df3faf95ab991a7a4221a9cb7f8773bab7353967b344ab3"},
+]
+
+[package.dependencies]
+scipy = "*"
+
+[package.extras]
+test = ["pytest", "pytest-cov"]
+
+[package.source]
+type = "legacy"
+url = "https://data.pyg.org/whl/torch-2.0.0+cu118.html"
+reference = "torch-sparse"
+
+[[package]]
 name = "tornado"
 version = "6.3.3"
 description = "Tornado is a Python web framework and asynchronous networking library, originally developed at FriendFeed."
@@ -3452,4 +3505,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "3.10.9"
-content-hash = "65f89ea0a2f87162b9cb6eedba8da2cc2d3362df3f09028b3b07eb311264c658"
+content-hash = "d5e74617be699f21f8d7dfcbd3b1a419bc260bc0a8b5046479de89d2991d8e22"

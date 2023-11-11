@@ -26,6 +26,8 @@ matplotlib = "^3.8.0"
 tensorboard = "^2.15.0"
 torch-geometric = "^2.4.0"
 jupyterlab = "^4.0.7"
+torch-sparse = {version = "^0.6.18+pt20cu118", source = "torch-sparse"}
+torch-scatter = {version = "^2.1.2+pt20cu118", source = "torch-sparse"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.2.5"
@@ -35,13 +37,22 @@ jupyter = "^1.0.0"
 
 [tool.poetry.scripts]
 process_steam = "scripts.process_steam:process"
+build_graph = "scripts:build_graph:build_graph"
 train = "scripts.train:train"
 eval = "scripts.eval:evaluate"
+train_graph = "scripts.train_graph:train"
+eval_graph = "scripts.eval_graph:evaluate"
 
 [[tool.poetry.source]]
 name = "pytorch"
 url = "https://download.pytorch.org/whl/cu118"
-priority = 'explicit'
+priority = "explicit"
+
+
+[[tool.poetry.source]]
+name = "torch-sparse"
+url = "https://data.pyg.org/whl/torch-2.0.0+cu118.html"
+priority = "explicit"
 
 [build-system]
 requires = ["poetry-core"]
