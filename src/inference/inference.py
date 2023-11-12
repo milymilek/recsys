@@ -24,6 +24,11 @@ def recommend_k(user_emb, item_emb, past_interactions, k=10, user_batch_size=100
     return recommendations
 
 
+@torch.no_grad()
+def recommend_k_deep(model, dataloader, k=10):
+
+
+
 def recommendation_relevance(recommendations, ground_truth):
     """
     Computes the relevance matrix of recommended items based on ground truth data.

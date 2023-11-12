@@ -9,10 +9,10 @@ from features.store import FeatureStore
 from models import DeepFM
 
 
-def load_model(model_path, model_kwargs):
+def load_model(model_path, model_kwargs, device='cpu'):
     model = DeepFM(**model_kwargs)
     model.load_state_dict(torch.load(model_path))
-    model = model.to(model_kwargs['device'])
+    model = model.to(device)
     return model
 
 

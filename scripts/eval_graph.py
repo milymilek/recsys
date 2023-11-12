@@ -15,7 +15,7 @@ from utils import write_scalars
 
 
 def load_model(model_path, model_kwargs, device='cpu'):
-    model = GraphSAGE(**model_kwargs).to(device)
+    model = GraphSAGE(**model_kwargs)
     model.load_state_dict(torch.load(model_path))
     model = model.to(device)
     return model

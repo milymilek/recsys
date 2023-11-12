@@ -12,6 +12,14 @@ def collate_fn(batch):
     return xs, ys.unsqueeze(1)
 
 
+def collate_fn_eval(batch):
+    xs = []
+    for x, _ in batch:
+        xs.append(x)
+    xs = torch.cat(xs)
+    return xs
+
+
 class DeepFMDataset(Dataset):
     def __init__(self, feature_store, edge_index, user_attr, item_attr, neg_sampl):
         self.edge_index = torch.tensor(edge_index) + 1

@@ -12,8 +12,6 @@ def build_graph():
     args = get_args()
 
     dir_art = args.artefact_directory
-    user_col = args.user_col
-    item_col = args.item_col
 
     with open(os.path.join(dir_art, 'data.pkl'), "rb") as f:
         data = pd.read_pickle(f)
@@ -47,8 +45,6 @@ def get_args():
     """Parse commandline arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument('--artefact_directory', type=str)
-    parser.add_argument('--user_col', type=str, default='user_id')
-    parser.add_argument('--item_col', type=str, default='app_id')
 
     return parser.parse_args()
 
