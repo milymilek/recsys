@@ -13,6 +13,7 @@ packages = [
     {include = "layers", from = "src"},
     {include = "models", from = "src"},
     {include = "inference", from = "src"},
+    {include = "utils", from = "src"},
     {include = "scripts"}
 ]
 
@@ -38,7 +39,7 @@ jupyter = "^1.0.0"
 
 [tool.poetry.scripts]
 process_steam = "scripts.process_steam:process"
-build_graph = "scripts:build_graph:build_graph"
+build_graph = "scripts.build_graph:build_graph"
 train = "scripts.train:train"
 eval = "scripts.eval:evaluate"
 train_graph = "scripts.train_graph:train"

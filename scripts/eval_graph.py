@@ -5,11 +5,13 @@ import pickle
 import numpy as np
 import pandas as pd
 import torch
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from metrics import precision_k, recall_k, ndcg_k
 from models.gnn import GraphSAGE
 from inference import recommend_k, recommendation_relevance
+from utils import write_scalars
 
 
 def load_model(model_path, model_kwargs, device='cpu'):
@@ -36,6 +38,7 @@ def evaluate():
 
     dir_art = args.artefact_directory
     model_path = args.model_path
+    log_dir = os.path.dirname(model_path)
     K = [int(k) for k in args.K]
     device = 'cuda' if (args.cuda and torch.cuda.is_available()) else 'cpu'
 
@@ -84,7 +87,12 @@ def evaluate():
         output_metrics["recall"].append(rec_k)
         output_metrics["ndcg"].append(n_k)
 
-    with open(os.path.join(f"runs/{model.__class__.__name__}/metrics", 'output_metrics.pkl'), 'wb') as f:
+    writer = SummaryWriter(log_dir=log_dir)
+    for i, k in enumerate(K):
+        scalars = [v[i] for v in output_metrics.values()]
+        write_scalars(writer=writer, names=output_metrics.keys(), scalars=scalars, step=k)
+
+    with open(os.path.join(log_dir, 'output_metrics.pkl'), 'wb') as f:
         pickle.dump(output_metrics, f)
 
 

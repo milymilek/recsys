@@ -5,7 +5,6 @@ from torch_geometric.loader import LinkNeighborLoader
 from tqdm import tqdm
 from datetime import datetime
 
-import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 import torch
@@ -13,9 +12,10 @@ from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 
 from models.gnn.sage import GraphSAGE
+from utils.utils import write_scalars
 
 
-def train_epoch(model, criterion, optimizer, train_loader, val_loader, device, print_loss=500):
+def train_epoch(model, criterion, optimizer, train_loader, val_loader, device):
     model.train()
 
     running_loss = 0.
@@ -33,20 +33,6 @@ def train_epoch(model, criterion, optimizer, train_loader, val_loader, device, p
         preds.append(y_pred)
         ground_truths.append(y_true)
         running_loss += loss.item()
-
-        # if not ((i_batch + 1) % print_loss):
-        #     pred = torch.cat(preds, dim=0).detach().sigmoid().cpu().numpy()
-        #     ground_truth = torch.cat(ground_truths, dim=0).detach().cpu().numpy()
-        #     last_loss = running_loss / print_loss
-        #
-        #     train_roc_auc = roc_auc_score(ground_truth, pred)
-        #     test_loss, test_roc_auc = test(model, criterion, val_loader, device)
-        #
-        #     preds, ground_truths = [], []
-        #     running_loss = 0.
-        #
-        #     print(f"""batch <{i_batch}>\ntrain_loss: {last_loss} - train_roc_auc: {train_roc_auc}\n
-        #     test_loss: {test_loss} - test_roc_auc: {test_roc_auc}\n""")
 
     pred = torch.cat(preds, dim=0).detach().sigmoid().cpu().numpy()
     ground_truth = torch.cat(ground_truths, dim=0).detach().cpu().numpy()
@@ -83,12 +69,6 @@ def test(model, criterion, val_loader, device):
     return test_loss, test_roc_auc
 
 
-def write_progress(writer, scalars, epoch, batch=None):
-    names = ['Loss/train', 'Loss/test', 'ROC_AUC/train', 'ROC_AUC/test']
-    for name, scalar in zip(names, scalars):
-        writer.add_scalar(name, scalar, epoch)
-
-
 def train():
     args = get_args()
     dir_art = args.artefact_directory
@@ -106,8 +86,8 @@ def train():
 
     train_loader = LinkNeighborLoader(
         data=train_data,
-        num_neighbors=[20, 10],
-        neg_sampling_ratio=2.0,
+        num_neighbors=[20, 15],
+        neg_sampling_ratio=20.0,
         edge_label_index=(('user', 'recommends', 'app'), train_data['user', 'recommends', 'app'].edge_label_index),
         edge_label=train_data['user', 'recommends', 'app'].edge_label,
         batch_size=1024,
@@ -116,8 +96,8 @@ def train():
     )
     valid_loader = LinkNeighborLoader(
         data=valid_data,
-        num_neighbors=[20, 10],
-        neg_sampling_ratio=2.0,
+        num_neighbors=[20, 15],
+        neg_sampling_ratio=20.0,
         edge_label_index=(('user', 'recommends', 'app'), valid_data['user', 'recommends', 'app'].edge_label_index),
         edge_label=valid_data['user', 'recommends', 'app'].edge_label,
         batch_size=1024,
@@ -133,8 +113,12 @@ def train():
     ).to(device)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.RMSprop(params=model.parameters(), lr=1e-4, momentum=0.9)
-    writer = SummaryWriter(log_dir=f"runs/{model.__class__.__name__}")
 
+    log_dir = f"runs/{model.__class__.__name__}/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+    writer = SummaryWriter(log_dir=log_dir)
+    scalar_names = ['Loss/train', 'Loss/test', 'ROC_AUC/train', 'ROC_AUC/test']
+
+    print(f"> Training model[{model.__class__.__name__}] on device[{device}] begins...")
     best_roc_auc = -1.0
     best_epoch = -1
     early_stop_thresh = 2
@@ -154,14 +138,14 @@ def train():
             device=device
         )
         scalars = (train_loss, test_loss, train_roc_auc, test_roc_auc)
-        write_progress(writer=writer, scalars=scalars, epoch=epoch)
+        write_scalars(writer=writer, names=scalar_names, scalars=scalars, step=epoch)
 
         if test_roc_auc > best_roc_auc:
             best_roc_auc = test_roc_auc
             best_epoch = epoch
-            torch.save(model.state_dict(), f"models/{model.__class__.__name__}/{datetime.now().strftime('%Y%m%d%H%M%S')}.pth")
+            torch.save(model.state_dict(), f"{log_dir}/model.pth")
         elif epoch - best_epoch > early_stop_thresh:
-            print("Early stopped training at epoch %d" % epoch)
+            print(f"> Early stopped training at epoch {epoch}")
             break
 
         print(f"""Epoch <{epoch}>\ntrain_loss: {train_loss} - train_roc_auc: {train_roc_auc}
