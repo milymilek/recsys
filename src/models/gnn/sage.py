@@ -50,9 +50,12 @@ class GraphSAGE(torch.nn.Module):
         )
         return pred
 
+    @torch.no_grad()
     def evaluate(self, batch):
+        self.eval()
+
         x_dict = {
-            "user": self.user_emb(batch['user'].n_id),
+            "user": self.user_emb(batch['user'].n_id) + self.user_lin(batch['user'].x),
             "app": self.app_emb(batch['app'].n_id) + self.app_lin(batch['app'].x),
         }
 

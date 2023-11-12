@@ -1,7 +1,10 @@
 import numpy as np
 
 
-def precision_k(reco_relevance, relevance, k=10):
+def precision_k(reco_relevance, relevance, mask, k=10):
+    reco_relevance = reco_relevance[mask]
+    relevance = relevance[mask]
+
     v = np.asarray(relevance.sum(axis=1).flatten(), dtype=int)[0].clip(1, k)
     bool_2d = np.vstack([np.concatenate((np.ones(i), np.zeros(k - i))) for i in v]).astype(bool)
 
@@ -9,12 +12,18 @@ def precision_k(reco_relevance, relevance, k=10):
     return prec_k
 
 
-def recall_k(reco_relevance, relevance, k=10):
+def recall_k(reco_relevance, relevance, mask, k=10):
+    reco_relevance = reco_relevance[mask]
+    relevance = relevance[mask]
+
     sum_relevant = relevance.sum(axis=1)
     return (reco_relevance.sum(axis=1) / sum_relevant).mean()
 
 
-def ndcg_k(reco_relevance, relevance, k=10):
+def ndcg_k(reco_relevance, relevance, mask, k=10):
+    reco_relevance = reco_relevance[mask]
+    relevance = relevance[mask]
+
     v = np.asarray(relevance.sum(axis=1).flatten(), dtype=int)[0].clip(1, k)
     ideal_relevance = np.vstack([np.concatenate((np.ones(i), np.zeros(k - i))) for i in v])
 

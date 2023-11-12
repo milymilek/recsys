@@ -149,8 +149,8 @@ def train():
             print("Early stopped training at epoch %d" % epoch)
             break
 
-        print(f"""Epoch <{epoch}>\ntrain_loss: {train_loss} - train_roc_auc: {train_roc_auc}\n
-        test_loss: {test_loss} - test_roc_auc: {test_roc_auc}\n""")
+        print(f"""Epoch <{epoch}>\ntrain_loss: {train_loss} - train_roc_auc: {train_roc_auc}
+test_loss: {test_loss} - test_roc_auc: {test_roc_auc}\n""")
 
     writer.close()
 

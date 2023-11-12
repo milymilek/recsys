@@ -12,6 +12,7 @@ packages = [
     {include = "features", from = "src"},
     {include = "layers", from = "src"},
     {include = "models", from = "src"},
+    {include = "inference", from = "src"},
     {include = "scripts"}
 ]
 

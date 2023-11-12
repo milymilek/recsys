@@ -1,16 +1,21 @@
 import argparse
 import os
+import pickle
 
 import numpy as np
 import pandas as pd
 import torch
+from tqdm import tqdm
+
+from metrics import precision_k, recall_k, ndcg_k
+from models.gnn import GraphSAGE
+from inference import recommend_k, recommendation_relevance
 
 
-
-def load_model(model_path, model_kwargs):
-    #model = DeepFM(**model_kwargs)
+def load_model(model_path, model_kwargs, device='cpu'):
+    model = GraphSAGE(**model_kwargs).to(device)
     model.load_state_dict(torch.load(model_path))
-    model = model.to(model_kwargs['device'])
+    model = model.to(device)
     return model
 
 
@@ -19,6 +24,7 @@ def get_args():
     parser = argparse.ArgumentParser(description='Evaluation for graph-based recommendation system.')
     parser.add_argument('--artefact_directory', type=str)
     parser.add_argument('--model_path', type=str)
+    parser.add_argument('--K', nargs="+", default=[1, 2, 5, 10, 20, 50, 100])
     parser.add_argument('--cuda', type=bool, default=False)
 
     return parser.parse_args()
@@ -27,31 +33,59 @@ def get_args():
 def evaluate():
     """Evaluation process."""
     args = get_args()
-    #
-    # dir_art = args.artefact_directory
-    # model_path = args.model_path
-    # device = 'cuda' if (args.cuda and torch.cuda.is_available()) else 'cpu'
-    #
-    # with open(os.path.join(dir_art, 'data.pkl'), "rb") as f:
-    #     data = pd.read_pickle(f)
-    # with open(os.path.join(dir_art, 'martix.pkl'), "rb") as f:
-    #     matrix = pd.read_pickle(f)
-    #
-    # train_set = data['relations_datastore'].dataframe.train.values.T
-    # supervision_set = data['relations_datastore'].dataframe.supervision.values.T
-    # valid_set = data['relations_datastore'].dataframe.valid.values.T
-    # item_attr = data['items_datastore'].dataframe.df
-    # user_attr = data['users_datastore'].dataframe.df
-    # scheme_relations = data['relations_datastore'].scheme
-    # scheme_items = data['items_datastore'].scheme
-    # scheme_users = data['users_datastore'].scheme
-    #
-    # train_csr = matrix['train_csr']
-    # valid_csr = matrix['valid_csr']
-    #
-    # train_set = np.concatenate((train_set, supervision_set), axis=1)
-    #
-    # model = load_model(model_path, model_kwargs={"feature_store": feature_store, "hidden_dim": [128, 64], "device": device})
+
+    dir_art = args.artefact_directory
+    model_path = args.model_path
+    K = [int(k) for k in args.K]
+    device = 'cuda' if (args.cuda and torch.cuda.is_available()) else 'cpu'
+
+    with open(os.path.join(dir_art, 'graph.pkl'), "rb") as f:
+        graph = pd.read_pickle(f)
+    with open(os.path.join(dir_art, 'matrix.pkl'), "rb") as f:
+        matrix = pd.read_pickle(f)
+
+    train_data = graph['train_data']
+    valid_data = graph['valid_data']
+
+    user_shape = train_data['user'].x.shape
+    app_shape = train_data['app'].x.shape
+
+    train_csr = matrix['train_csr']
+    valid_csr = matrix['valid_csr']
+
+    model = load_model(
+        model_path=model_path,
+        model_kwargs={
+            "entities_shapes": {"user": user_shape, "app": app_shape},
+            "hidden_channels": 32,
+            "out_channels": 32,
+            "metadata": train_data.metadata()
+        },
+        device=device
+    )
+
+    x_emb = model.evaluate(valid_data.to(device))
+    recommendations = recommend_k(
+        user_emb=x_emb['user'],
+        item_emb=x_emb['app'],
+        past_interactions=train_csr,
+        k=max(K),
+        user_batch_size=10000
+    ).cpu().numpy()
+
+    output_metrics = {"precision": [], "recall": [], "ndcg": []}
+    for k in tqdm(K):
+        reco_k = recommendations[:, :k]
+        reco_rel, rel_mask = recommendation_relevance(reco_k, valid_csr)
+        prec_k = precision_k(reco_rel, valid_csr, rel_mask, k)
+        rec_k = recall_k(reco_rel, valid_csr, rel_mask, k)
+        n_k = ndcg_k(reco_rel.getA(), valid_csr, rel_mask, k)
+        output_metrics["precision"].append(prec_k)
+        output_metrics["recall"].append(rec_k)
+        output_metrics["ndcg"].append(n_k)
+
+    with open(os.path.join(f"runs/{model.__class__.__name__}/metrics", 'output_metrics.pkl'), 'wb') as f:
+        pickle.dump(output_metrics, f)
 
 
 if __name__ == '__main__':
