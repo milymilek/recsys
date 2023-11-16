@@ -11,7 +11,7 @@ import torch
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 
-from models.gnn.sage import GraphSAGE
+from models.gnn import GraphSAGE, GCN, GNN
 from utils.utils import write_scalars
 
 
@@ -105,10 +105,15 @@ def train():
         drop_last=True
     )
 
-    model = GraphSAGE(
+    if model_name == "GraphSAGE":
+        gnn_model = GraphSAGE(hidden_channels=32, out_channels=32)
+    elif model_name == "GCN":
+        gnn_model = GCN(hidden_channels=32, out_channels=32)
+
+    model = GNN(
+        gnn_model=gnn_model,
         entities_shapes={"user": user_shape, "app": app_shape},
         hidden_channels=32,
-        out_channels=32,
         metadata=train_data.metadata()
     ).to(device)
     criterion = nn.BCEWithLogitsLoss()

@@ -1,5 +1,6 @@
 import functools
 import time
+import torch
 
 
 def write_scalars(writer, names, scalars, step):
@@ -17,3 +18,10 @@ def timer(func):
         print(f"Finished {func.__name__!r} in {run_time:.4f} secs")
         return value
     return wrapper_timer
+
+
+def load_model(cls, model_path, model_kwargs, device='cpu'):
+    model = cls(**model_kwargs)
+    model.load_state_dict(torch.load(model_path))
+    model = model.to(device)
+    return model

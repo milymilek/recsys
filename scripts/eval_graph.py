@@ -11,14 +11,7 @@ from tqdm import tqdm
 from metrics import precision_k, recall_k, ndcg_k
 from models.gnn import GraphSAGE
 from inference import recommend_k, recommendation_relevance
-from utils import write_scalars
-
-
-def load_model(model_path, model_kwargs, device='cpu'):
-    model = GraphSAGE(**model_kwargs)
-    model.load_state_dict(torch.load(model_path))
-    model = model.to(device)
-    return model
+from utils import write_scalars, load_model
 
 
 def get_args():
@@ -57,6 +50,7 @@ def evaluate():
     valid_csr = matrix['valid_csr']
 
     model = load_model(
+        cls=GraphSAGE,
         model_path=model_path,
         model_kwargs={
             "entities_shapes": {"user": user_shape, "app": app_shape},

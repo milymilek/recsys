@@ -5,11 +5,12 @@ from layers import MLP, EmbeddingNet
 
 
 class NCF(nn.Module):
-    def __init__(self, feature_store, hidden_dim):
+    def __init__(self, feature_store, hidden_dim, device):
         super(NCF, self).__init__()
         self.feature_store = feature_store
+        self.device = device
 
-        self.V = EmbeddingNet(feature_store)
+        self.V = EmbeddingNet(feature_store, device=device)
         self.dnn = MLP(feature_store.get_input_dim(), hidden_dim)
 
     def forward(self, x):

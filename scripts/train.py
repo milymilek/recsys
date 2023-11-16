@@ -1,5 +1,4 @@
 import argparse
-import pickle
 import os
 from tqdm import tqdm
 from datetime import datetime
@@ -9,16 +8,16 @@ import pandas as pd
 from sklearn.metrics import roc_auc_score
 import torch
 from torch import nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from dataset.deep import DeepFMDataset, collate_fn
+from dataset.deep import DeepDatasetIterable, FeaturelessDatasetIterable, collate_fn
 from features.store import FeatureStore
-from models import DeepFM
+from models import DeepFM, NCF, MF
 from utils import write_scalars
 
 
-def train_epoch(model, criterion, optimizer, train_loader, val_loader, device, print_loss=500):
+def train_epoch(model, criterion, optimizer, train_loader, device):
     model.train()
 
     running_loss = 0.
@@ -73,30 +72,46 @@ def test(model, criterion, val_loader, device):
 def train():
     args = get_args()
     dir_art = args.artefact_directory
+    model_name = args.model
     device = 'cuda' if (args.cuda and torch.cuda.is_available()) else 'cpu'
     n_epochs = args.epochs
+    seed = args.seed
+
+    torch.manual_seed(seed)
 
     with open(os.path.join(dir_art, 'data.pkl'), "rb") as f:
         data = pd.read_pickle(f)
 
-    train_set = data['relations_datastore'].dataframe.train.values.T
-    supervision_set = data['relations_datastore'].dataframe.supervision.values.T
-    valid_set = data['relations_datastore'].dataframe.valid.values.T
+    train_set = data['relations_datastore'].dataframe.train.values
+    supervision_set = data['relations_datastore'].dataframe.supervision.values
+    valid_set = data['relations_datastore'].dataframe.valid.values
     item_attr = data['items_datastore'].dataframe.df
     user_attr = data['users_datastore'].dataframe.df
     scheme_relations = data['relations_datastore'].scheme
     scheme_items = data['items_datastore'].scheme
     scheme_users = data['users_datastore'].scheme
 
-    train_set = np.concatenate((train_set, supervision_set), axis=1)
+    train_set = np.concatenate((train_set, supervision_set), axis=0)
+    n_users, n_items = user_attr.shape[0], item_attr.shape[0]
 
-    feature_store = FeatureStore(scheme_relations, scheme_items, scheme_users, emb_dims={"sparse": 4, "varlen": 4})
-    train_dataset = DeepFMDataset(feature_store, train_set.T, user_attr, item_attr, neg_sampl=2)
-    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=1024, collate_fn=collate_fn, drop_last=True)
-    val_dataset = DeepFMDataset(feature_store, valid_set.T, user_attr, item_attr, neg_sampl=2)
-    val_loader = DataLoader(val_dataset, shuffle=False, batch_size=1024, collate_fn=collate_fn, drop_last=True)
+    feature_store = FeatureStore(scheme_relations, scheme_items, scheme_users, emb_dims={"sparse": 16, "varlen": 16})
 
-    model = DeepFM(feature_store, hidden_dim=[128, 64], device=device).to(device)
+    if model_name == "DeepFM":
+        train_dataset = DeepDatasetIterable(feature_store, train_set, user_attr, item_attr, user_batch_size=int(1e4), neg_sampl=2)
+        val_dataset = DeepDatasetIterable(feature_store, valid_set, user_attr, item_attr, user_batch_size=int(1e4), neg_sampl=2)
+        model = DeepFM(feature_store, hidden_dim=[128, 64], device=device).to(device)
+    elif model_name == "NCF":
+        train_dataset = DeepDatasetIterable(feature_store, train_set, user_attr, item_attr, user_batch_size=int(1e4), neg_sampl=2)
+        val_dataset = DeepDatasetIterable(feature_store, valid_set, user_attr, item_attr, user_batch_size=int(1e4), neg_sampl=2)
+        model = NCF(feature_store, hidden_dim=[128, 64]).to(device)
+    elif model_name == "MF":
+        train_dataset = FeaturelessDatasetIterable(train_set, n_users, n_items, user_batch_size=int(1e4), neg_sampl=2)
+        val_dataset = FeaturelessDatasetIterable(valid_set, n_users, n_items, user_batch_size=int(1e4), neg_sampl=2)
+        model = MF(feature_store).to(device)
+
+    train_loader = DataLoader(train_dataset, shuffle=False, batch_size=1, collate_fn=collate_fn, drop_last=False)
+    val_loader = DataLoader(val_dataset, shuffle=False, batch_size=1, collate_fn=collate_fn, drop_last=False)
+
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.RMSprop(params=model.parameters(), lr=1e-4, momentum=0.9)
 
@@ -114,7 +129,6 @@ def train():
             criterion=criterion,
             optimizer=optimizer,
             train_loader=train_loader,
-            val_loader=val_loader,
             device=device
         )
         test_loss, test_roc_auc = test(
@@ -144,8 +158,10 @@ def get_args():
     """Parse commandline arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument('--artefact_directory', type=str)
+    parser.add_argument('--model', type=str, choices=['DeepFM', 'NCF', 'MF'], required=True)
     parser.add_argument('--epochs', type=int)
     parser.add_argument('--cuda', type=bool, default=False)
+    parser.add_argument('--seed', type=int, default=0)
 
     return parser.parse_args()
 
