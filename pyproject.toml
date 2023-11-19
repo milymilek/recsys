@@ -40,6 +40,7 @@ jupyter = "^1.0.0"
 [tool.poetry.scripts]
 process_steam = "scripts.process_steam:process"
 build_graph = "scripts.build_graph:build_graph"
+build_knowledge_graph = "scripts.build_knowledge_graph:build_knowledge_graph"
 train = "scripts.train:train"
 eval = "scripts.eval:evaluate"
 train_graph = "scripts.train_graph:train"

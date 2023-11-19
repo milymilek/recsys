@@ -64,38 +64,36 @@ def sample_paths(x, K=0.3):
     return heads
 
 
-def get_ripple_set1(df_exploded, user_apps):
+def get_ripple_set1(df_exploded, user_apps, users):
     ripple_set1 = []
-    n_users = len(user_apps)
-    for u in tqdm(range(0, n_users)):
-        df_ripple_set1 = df_exploded[df_exploded['head'].isin(user_apps[u])] \
+    n_users = len(users)
+    for u in tqdm(users):
+        df_ripple_set1 = df_exploded[np.isin(df_exploded.values[:, 0], user_apps[u])] \
             .groupby("head") \
-            .apply(lambda x: x.sample(n=min(10, len(x)))) \
-            .reset_index(drop=True)
+            .apply(lambda x: x.sample(n=min(10, len(x)))).values
         ripple_set1.append(df_ripple_set1)
 
     ripple_index = [i.shape[0] for i in ripple_set1]
-    ripple_index_1 = np.repeat(np.arange(n_users), ripple_index)
+    ripple_index_1 = np.repeat(users, ripple_index)
     ripple_index_2 = np.concatenate([np.arange(i) for i in ripple_index])
     multiindex = pd.MultiIndex.from_arrays([ripple_index_1, ripple_index_2], names=['user_id', 'id'])
 
-    df_ripple_set1 = pd.concat(ripple_set1, ignore_index=True).set_index(multiindex)
+    df_ripple_set1 = pd.DataFrame(np.concatenate(ripple_set1), index=multiindex,
+                                  columns=['head', 'relation', 'tail'])
 
     return df_ripple_set1
 
 
-def get_ripple_set2(df_exploded, df_ripple_set1):
+def get_ripple_set2(df_exploded, df_ripple_set1, users):
     ripple_set2 = []
     n_users = df_ripple_set1.index.get_level_values(0).nunique()
-    for u in tqdm(range(0, n_users)):
+    for u in tqdm(users):
         dff = df_ripple_set1.loc[u]
         heads = dff.groupby('relation').apply(sample_paths).explode().values
-        df_ripple_set2 = df_exploded[df_exploded['head'] \
-            .isin(heads)] \
+        df_ripple_set2 = df_exploded[df_exploded['head'].isin(heads)] \
             .groupby('head') \
-            .apply(lambda x: x.sample(n=min(10, len(x)))) \
-            .reset_index(drop=True)
-        df_ripple_set2 = df_ripple_set2[~df_ripple_set2['tail'].isin(dff['head'])]
+            .apply(lambda x: x.sample(n=min(10, len(x))))
+        df_ripple_set2 = df_ripple_set2[~df_ripple_set2['tail'].isin(dff['head'])].values
         ripple_set2.append(df_ripple_set2)
 
     ripple_index = [i.shape[0] for i in ripple_set2]
@@ -103,7 +101,7 @@ def get_ripple_set2(df_exploded, df_ripple_set1):
     ripple_index_2 = np.concatenate([np.arange(i) for i in ripple_index])
     multiindex = pd.MultiIndex.from_arrays([ripple_index_1, ripple_index_2], names=['user_id', 'id'])
 
-    df_ripple_set2 = pd.concat(ripple_set2, ignore_index=True).set_index(multiindex)
+    df_ripple_set2 = pd.DataFrame(np.concatenate(ripple_set2), index=multiindex, columns=['head', 'relation', 'tail'])
 
     return df_ripple_set2
 
@@ -117,9 +115,9 @@ def build_knowledge_graph():
     with open(os.path.join(dir_art, 'data.pkl'), "rb") as f:
         data = pd.read_pickle(f)
 
-    train_set = data['relations_datastore'].dataframe.train.values.T
-    supervision_set = data['relations_datastore'].dataframe.supervision.values.T
-    valid_set = data['relations_datastore'].dataframe.valid.values.T
+    train_set = data['relations_datastore'].dataframe.train
+    supervision_set = data['relations_datastore'].dataframe.supervision
+    valid_set = data['relations_datastore'].dataframe.valid
 
     # Data adjustment - todo: data wrangling refactor
     train_set = train_set.sort_values(by=['user_id', 'app_id']).reset_index(drop=True)
@@ -129,6 +127,9 @@ def build_knowledge_graph():
     train_set['app_id'] = train_set['app_id'] + 1
     supervision_set['app_id'] = supervision_set['app_id'] + 1
     valid_set['app_id'] = valid_set['app_id'] + 1
+
+    train_users = supervision_set['user_id'].unique()
+    valid_users = valid_set['user_id'].unique()
     print("> Data adjustment done")
 
     df_items = read_items_data(path="data/items.csv", data=data)
@@ -137,18 +138,27 @@ def build_knowledge_graph():
     df_exploded2[['head', 'tail']] = df_exploded2[['tail', 'head']].values
     print("> Exploded DataFrame created")
 
-    user_item_list_train = get_user_item_list(train_set)
-    user_item_list_valid = get_user_item_list(pd.concat([train_set, supervision_set]))
+    user_item_list_train = get_user_item_list(train_set)[train_users]
+    user_item_list_valid = get_user_item_list(pd.concat([train_set, supervision_set]))[valid_users]
     print("> User-Items lists created")
 
     ripple_sets_train = []
-    ripple_sets_train[0] = get_ripple_set1(df_exploded, user_item_list_train)
-    ripple_sets_train[1] = get_ripple_set2(df_exploded2, ripple_sets_train[0])
+    ripple_sets_train.append(
+        get_ripple_set1(df_exploded=df_exploded, user_apps=user_item_list_train, users=train_users)
+    )
+    ripple_sets_train.append(
+        get_ripple_set2(df_exploded=df_exploded2, df_ripple_set1=ripple_sets_train[0], users=train_users)
+    )
 
     ripple_sets_valid = []
-    ripple_sets_valid[0] = get_ripple_set1(df_exploded, user_item_list_valid)
-    ripple_sets_valid[1] = get_ripple_set2(df_exploded2, ripple_sets_valid[0])
+    ripple_sets_valid.append(
+        get_ripple_set1(df_exploded=df_exploded, user_apps=user_item_list_valid, users=valid_users)
+    )
+    ripple_sets_valid.append(
+        get_ripple_set2(df_exploded=df_exploded2, df_ripple_set1=ripple_sets_valid[0], users=valid_users)
+    )
     print("> Ripple Sets created")
+
 
     knowledge_graph = {
         "train_set": train_set,
