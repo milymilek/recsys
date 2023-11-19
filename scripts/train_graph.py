@@ -2,6 +2,7 @@ import argparse
 import os
 
 from torch_geometric.loader import LinkNeighborLoader
+from torch_geometric.nn import GATConv
 from tqdm import tqdm
 from datetime import datetime
 
@@ -11,7 +12,7 @@ import torch
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 
-from models.gnn import GraphSAGE, GCN, GNN
+from models.gnn import GraphSAGE, GATConv, GNN
 from utils.utils import write_scalars
 
 
@@ -72,8 +73,12 @@ def test(model, criterion, val_loader, device):
 def train():
     args = get_args()
     dir_art = args.artefact_directory
+    model_name = args.model
     device = 'cuda' if (args.cuda and torch.cuda.is_available()) else 'cpu'
     n_epochs = args.epochs
+    seed = args.seed
+
+    torch.manual_seed(seed)
 
     with open(os.path.join(dir_art, 'graph.pkl'), "rb") as f:
         graph = pd.read_pickle(f)
@@ -107,8 +112,8 @@ def train():
 
     if model_name == "GraphSAGE":
         gnn_model = GraphSAGE(hidden_channels=32, out_channels=32)
-    elif model_name == "GCN":
-        gnn_model = GCN(hidden_channels=32, out_channels=32)
+    elif model_name == "GATConv":
+        gnn_model = GATConv(hidden_channels=32, out_channels=32)
 
     model = GNN(
         gnn_model=gnn_model,
@@ -163,8 +168,10 @@ def get_args():
     """Parse commandline arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument('--artefact_directory', type=str)
+    parser.add_argument('--model', type=str, choices=['GraphSAGE', 'GATConv'], required=True)
     parser.add_argument('--epochs', type=int)
     parser.add_argument('--cuda', type=bool, default=False)
+    parser.add_argument('--seed', type=int, default=0)
 
     return parser.parse_args()
 

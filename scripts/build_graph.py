@@ -8,7 +8,7 @@ from data.utils import load_graph, transform_graph
 
 
 def build_graph():
-    """Create graph from preprocessing outputs."""
+    """Create graph from preprocess_steam.py outputs."""
     args = get_args()
 
     dir_art = args.artefact_directory

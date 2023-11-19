@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from metrics import precision_k, recall_k, ndcg_k
-from models.gnn import GraphSAGE
+from models.gnn import GraphSAGE, GATConv, GNN
 from inference import recommend_k, recommendation_relevance
 from utils import write_scalars, load_model
 
@@ -32,6 +32,7 @@ def evaluate():
     dir_art = args.artefact_directory
     model_path = args.model_path
     log_dir = os.path.dirname(model_path)
+    model_name = os.path.basename(os.path.dirname(log_dir))
     K = [int(k) for k in args.K]
     device = 'cuda' if (args.cuda and torch.cuda.is_available()) else 'cpu'
 
@@ -49,13 +50,18 @@ def evaluate():
     train_csr = matrix['train_csr']
     valid_csr = matrix['valid_csr']
 
+    if model_name == "GraphSAGE":
+        gnn_model = GraphSAGE(hidden_channels=32, out_channels=32)
+    elif model_name == "GATConv":
+        gnn_model = GATConv(hidden_channels=32, out_channels=32)
+
     model = load_model(
-        cls=GraphSAGE,
+        cls=GNN,
         model_path=model_path,
         model_kwargs={
+            "gnn_model": gnn_model,
             "entities_shapes": {"user": user_shape, "app": app_shape},
             "hidden_channels": 32,
-            "out_channels": 32,
             "metadata": train_data.metadata()
         },
         device=device
