@@ -63,6 +63,9 @@ def sample_paths(x, K=0.3):
 
 
 def get_ripple_set1(df_exploded, user_apps, users):
+    if users is None:
+        users = np.arange(user_apps.shape[0])
+
     ripple_set1 = []
     for u in tqdm(users):
         df_ripple_set1 = df_exploded[np.isin(df_exploded.values[:, 0], user_apps[u])] \
@@ -82,6 +85,9 @@ def get_ripple_set1(df_exploded, user_apps, users):
 
 
 def get_ripple_set2(df_exploded, df_ripple_set1, users):
+    if users is None:
+        users = np.arange(df_ripple_set1.index.get_level_values(0).nunique())
+
     ripple_set2 = []
     for u in tqdm(users):
         dff = df_ripple_set1.loc[u]
