@@ -6,17 +6,15 @@ import pandas as pd
 from ast import literal_eval
 from tqdm import tqdm
 
-from data.utils import load_graph, transform_graph
-
 
 RELATIONS = {"developer": "developed", "publisher": "published", "OS": "system", "tags": "tag"}
 RELATIONS_MAP = {k: v for v, k in enumerate(["developed", "published", "system", "tag"])}
 ENTITY_MAP = None
 
 
-def read_items_data(path: str, data: dict):
+def read_items_data(path: str, path_additional: str, data: dict):
     df_items = pd.read_csv(path)
-    df_items_additional_info = pd.read_csv("data/steam.csv")[['appid', 'developer', 'publisher']].rename(
+    df_items_additional_info = pd.read_csv(path_additional)[['appid', 'developer', 'publisher']].rename(
         columns={"appid": "app_id"})
     df_items[['win', 'mac', 'linux']] = df_items[['win', 'mac', 'linux']].astype(int)
     df_items['OS'] = df_items[['win', 'mac', 'linux']].apply(lambda row: [row.index[i] for i, v in enumerate(row) if v],
@@ -66,7 +64,6 @@ def sample_paths(x, K=0.3):
 
 def get_ripple_set1(df_exploded, user_apps, users):
     ripple_set1 = []
-    n_users = len(users)
     for u in tqdm(users):
         df_ripple_set1 = df_exploded[np.isin(df_exploded.values[:, 0], user_apps[u])] \
             .groupby("head") \
@@ -79,14 +76,13 @@ def get_ripple_set1(df_exploded, user_apps, users):
     multiindex = pd.MultiIndex.from_arrays([ripple_index_1, ripple_index_2], names=['user_id', 'id'])
 
     df_ripple_set1 = pd.DataFrame(np.concatenate(ripple_set1), index=multiindex,
-                                  columns=['head', 'relation', 'tail'])
+                                  columns=['heads', 'relations', 'tails'])
 
     return df_ripple_set1
 
 
 def get_ripple_set2(df_exploded, df_ripple_set1, users):
     ripple_set2 = []
-    n_users = df_ripple_set1.index.get_level_values(0).nunique()
     for u in tqdm(users):
         dff = df_ripple_set1.loc[u]
         heads = dff.groupby('relation').apply(sample_paths).explode().values
@@ -97,7 +93,7 @@ def get_ripple_set2(df_exploded, df_ripple_set1, users):
         ripple_set2.append(df_ripple_set2)
 
     ripple_index = [i.shape[0] for i in ripple_set2]
-    ripple_index_1 = np.repeat(np.arange(n_users), ripple_index)
+    ripple_index_1 = np.repeat(users, ripple_index)
     ripple_index_2 = np.concatenate([np.arange(i) for i in ripple_index])
     multiindex = pd.MultiIndex.from_arrays([ripple_index_1, ripple_index_2], names=['user_id', 'id'])
 
@@ -132,31 +128,27 @@ def build_knowledge_graph():
     valid_users = valid_set['user_id'].unique()
     print("> Data adjustment done")
 
-    df_items = read_items_data(path="data/items.csv", data=data)
+    df_items = read_items_data(path="data/items.csv", path_additional="data/steam.csv", data=data)
     df_exploded = create_exploded_df(df_items)
     df_exploded2 = df_exploded.copy(deep=True)
     df_exploded2[['head', 'tail']] = df_exploded2[['tail', 'head']].values
     print("> Exploded DataFrame created")
 
-    user_item_list_train = get_user_item_list(train_set)[train_users]
-    user_item_list_valid = get_user_item_list(pd.concat([train_set, supervision_set]))[valid_users]
+    user_item_list_train = get_user_item_list(train_set)
+    user_item_list_valid = get_user_item_list(pd.concat([train_set, supervision_set]))
     print("> User-Items lists created")
 
     ripple_sets_train = []
     ripple_sets_train.append(
-        get_ripple_set1(df_exploded=df_exploded, user_apps=user_item_list_train, users=train_users)
-    )
+        get_ripple_set1(df_exploded=df_exploded, user_apps=user_item_list_train, users=train_users))
     ripple_sets_train.append(
-        get_ripple_set2(df_exploded=df_exploded2, df_ripple_set1=ripple_sets_train[0], users=train_users)
-    )
+        get_ripple_set2(df_exploded=df_exploded2, df_ripple_set1=ripple_sets_train[0], users=train_users))
 
     ripple_sets_valid = []
     ripple_sets_valid.append(
-        get_ripple_set1(df_exploded=df_exploded, user_apps=user_item_list_valid, users=valid_users)
-    )
+        get_ripple_set1(df_exploded=df_exploded, user_apps=user_item_list_valid, users=valid_users))
     ripple_sets_valid.append(
-        get_ripple_set2(df_exploded=df_exploded2, df_ripple_set1=ripple_sets_valid[0], users=valid_users)
-    )
+        get_ripple_set2(df_exploded=df_exploded2, df_ripple_set1=ripple_sets_valid[0], users=valid_users))
     print("> Ripple Sets created")
 
 
@@ -166,6 +158,8 @@ def build_knowledge_graph():
         "valid_set": valid_set,
         "ripple_sets_train": ripple_sets_train,
         "ripple_sets_valid": ripple_sets_valid,
+        "relations_map": RELATIONS_MAP,
+        "entity_map": ENTITY_MAP
     }
 
     with open(os.path.join(dir_art, "knowledge_graph.pkl"), "wb") as f:
