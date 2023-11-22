@@ -45,6 +45,8 @@ train = "scripts.train:train"
 eval = "scripts.eval:evaluate"
 train_graph = "scripts.train_graph:train"
 eval_graph = "scripts.eval_graph:evaluate"
+train_knowledge_graph = "scripts.train_knowledge_graph:train"
+eval_knowledge_graph = "scripts.eval_knowledge_graph:evaluate"
 
 [[tool.poetry.source]]
 name = "pytorch"
