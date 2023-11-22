@@ -79,7 +79,7 @@ def get_ripple_set1(df_exploded, user_apps, users):
     multiindex = pd.MultiIndex.from_arrays([ripple_index_1, ripple_index_2], names=['user_id', 'id'])
 
     df_ripple_set1 = pd.DataFrame(np.concatenate(ripple_set1), index=multiindex,
-                                  columns=['heads', 'relations', 'tails'])
+                                  columns=['head', 'relation', 'tail'])
 
     return df_ripple_set1
 
