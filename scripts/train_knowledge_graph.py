@@ -142,7 +142,6 @@ def train():
             criterion=criterion,
             optimizer=optimizer,
             train_loader=train_loader,
-            val_loader=valid_loader,
             device=device
         )
         test_loss, test_roc_auc = test(
