@@ -91,6 +91,7 @@ def train():
     model_name = args.model
     device = 'cuda' if (args.cuda and torch.cuda.is_available()) else 'cpu'
     n_epochs = args.epochs
+    num_workers = args.num_workers
     seed = args.seed
 
     torch.manual_seed(seed)
@@ -117,10 +118,10 @@ def train():
     # ===============================
 
     train_dataset = RippleDataset(train_set, supervision_set, ripple_sets_train)
-    train_loader = DataLoader(train_dataset, batch_size=1024, shuffle=True, collate_fn=collate_fn, drop_last=True)
+    train_loader = DataLoader(train_dataset, batch_size=1024, shuffle=True, collate_fn=collate_fn, drop_last=True, num_workers=num_workers)
 
     valid_dataset = RippleDataset(pd.concat([train_set, supervision_set]), valid_set, ripple_sets_valid)
-    valid_loader = DataLoader(valid_dataset, batch_size=1024, shuffle=True, collate_fn=collate_fn, drop_last=True)
+    valid_loader = DataLoader(valid_dataset, batch_size=1024, shuffle=True, collate_fn=collate_fn, drop_last=True, num_workers=num_workers)
 
     if model_name == "RippleNet":
         model = RippleNet(emb_dim=16, n_relations=4, n_entities=max(entity_map.values())).to(device)
@@ -129,7 +130,7 @@ def train():
     optimizer = torch.optim.RMSprop(params=model.parameters(), lr=1e-4, momentum=0.9)
 
     log_dir = f"runs/{model.__class__.__name__}/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-    writer = SummaryWriter(log_dir=log_dir)
+    #writer = SummaryWriter(log_dir=log_dir)
     scalar_names = ['Loss/train', 'Loss/test', 'ROC_AUC/train', 'ROC_AUC/test']
 
     print(f"> Training model[{model.__class__.__name__}] on device[{device}] begins...")
@@ -151,7 +152,7 @@ def train():
             device=device
         )
         scalars = (train_loss, test_loss, train_roc_auc, test_roc_auc)
-        write_scalars(writer=writer, names=scalar_names, scalars=scalars, step=epoch)
+        #write_scalars(writer=writer, names=scalar_names, scalars=scalars, step=epoch)
 
         if test_roc_auc > best_roc_auc:
             best_roc_auc = test_roc_auc
@@ -164,7 +165,7 @@ def train():
         print(f"""Epoch <{epoch}>\ntrain_loss: {train_loss} - train_roc_auc: {train_roc_auc}
 test_loss: {test_loss} - test_roc_auc: {test_roc_auc}\n""")
 
-    writer.close()
+    #writer.close()
 
 
 def get_args():
@@ -174,6 +175,7 @@ def get_args():
     parser.add_argument('--model', type=str, choices=['RippleNet'], required=True)
     parser.add_argument('--epochs', type=int)
     parser.add_argument('--cuda', type=bool, default=False)
+    parser.add_argument('--num_workers', type=int, default=0)
     parser.add_argument('--seed', type=int, default=0)
 
     return parser.parse_args()

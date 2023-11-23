@@ -27,7 +27,7 @@ class RippleDataset(Dataset):
         self.n_users = ripple_sets[0].index.get_level_values(0).nunique()
 
     def __len__(self):
-        return self.n_users
+        return self.edge_label.shape[0]
 
     def __getitem__(self, idx):
         el = self.edge_label.loc[idx].values
