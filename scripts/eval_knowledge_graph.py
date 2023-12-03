@@ -130,8 +130,8 @@ def evaluate():
     users = valid_set['user_id'].unique()
     items = np.arange(valid_csr.shape[1]) + 1
 
-    users = users[:1000]
-    valid_csr = valid_csr[:1000]
+    users = users
+    valid_csr = valid_csr
 
     if model_name == "RippleNet":
         model_cls = RippleNet

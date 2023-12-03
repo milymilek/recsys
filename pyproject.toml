@@ -30,6 +30,8 @@ torch-geometric = "^2.4.0"
 jupyterlab = "^4.0.7"
 torch-sparse = {version = "^0.6.18+pt20cu118", source = "torch-sparse"}
 torch-scatter = {version = "^2.1.2+pt20cu118", source = "torch-sparse"}
+catalyst = "^22.4"
+gym = "^0.26.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.2.5"
