@@ -22,3 +22,9 @@ class FeatureScheme:
     def dump(self, path):
         with open(path, 'wb') as f:
             pickle.dump(self, f)
+
+    @classmethod
+    def from_feature_list(cls, list):
+        obj = cls()
+        obj.features = list
+        return obj

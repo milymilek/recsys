@@ -130,7 +130,7 @@ def train():
     optimizer = torch.optim.RMSprop(params=model.parameters(), lr=1e-4, momentum=0.9)
 
     log_dir = f"runs/{model.__class__.__name__}/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-    #writer = SummaryWriter(log_dir=log_dir)
+    writer = SummaryWriter(log_dir=log_dir)
     scalar_names = ['Loss/train', 'Loss/test', 'ROC_AUC/train', 'ROC_AUC/test']
 
     print(f"> Training model[{model.__class__.__name__}] on device[{device}] begins...")
@@ -152,7 +152,7 @@ def train():
             device=device
         )
         scalars = (train_loss, test_loss, train_roc_auc, test_roc_auc)
-        #write_scalars(writer=writer, names=scalar_names, scalars=scalars, step=epoch)
+        write_scalars(writer=writer, names=scalar_names, scalars=scalars, step=epoch)
 
         if test_roc_auc > best_roc_auc:
             best_roc_auc = test_roc_auc
@@ -165,7 +165,7 @@ def train():
         print(f"""Epoch <{epoch}>\ntrain_loss: {train_loss} - train_roc_auc: {train_roc_auc}
 test_loss: {test_loss} - test_roc_auc: {test_roc_auc}\n""")
 
-    #writer.close()
+    writer.close()
 
 
 def get_args():
