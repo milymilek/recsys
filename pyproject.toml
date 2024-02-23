@@ -18,7 +18,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "3.10.9"
+python = "3.10.4"
 numpy = "1.26.0"
 pandas = "2.1.1"
 torch = {version = "2.0.1", source = "pytorch"}
@@ -32,6 +32,7 @@ torch-sparse = {version = "^0.6.18+pt20cu118", source = "torch-sparse"}
 torch-scatter = {version = "^2.1.2+pt20cu118", source = "torch-sparse"}
 catalyst = "^22.4"
 gym = "^0.26.2"
+py2neo = "^2021.2.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^6.2.5"

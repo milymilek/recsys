@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from dataset.deep import DeepDatasetIterable, FeaturelessDatasetIterable, collate_fn
+from features.scheme import FeatureScheme
 from features.store import FeatureStore
 from models import DeepFM, NCF, MF
 from utils import write_scalars
@@ -94,20 +95,27 @@ def train():
     train_set = np.concatenate((train_set, supervision_set), axis=0)
     n_users, n_items = user_attr.shape[0], item_attr.shape[0]
 
-    feature_store = FeatureStore(scheme_relations, scheme_items, scheme_users, emb_dims={"sparse": 16, "varlen": 16})
+    feature_store = FeatureStore(scheme_relations, scheme_items, scheme_users, emb_dims={"sparse": 4, "varlen": 4})
 
     if model_name == "DeepFM":
-        train_dataset = DeepDatasetIterable(feature_store, train_set, user_attr, item_attr, user_batch_size=int(1e4), neg_sampl=2)
-        val_dataset = DeepDatasetIterable(feature_store, valid_set, user_attr, item_attr, user_batch_size=int(1e4), neg_sampl=2)
-        model = DeepFM(feature_store, hidden_dim=[128, 64], device=device).to(device)
+        train_dataset = DeepDatasetIterable(feature_store, train_set, user_attr, item_attr, user_batch_size=int(1e4), neg_sampl=1)
+        val_dataset = DeepDatasetIterable(feature_store, valid_set, user_attr, item_attr, user_batch_size=int(1e4), neg_sampl=1)
+        model = DeepFM(feature_store, hidden_dim=[64, 16], device=device).to(device)
     elif model_name == "NCF":
         train_dataset = DeepDatasetIterable(feature_store, train_set, user_attr, item_attr, user_batch_size=int(1e4), neg_sampl=2)
         val_dataset = DeepDatasetIterable(feature_store, valid_set, user_attr, item_attr, user_batch_size=int(1e4), neg_sampl=2)
         model = NCF(feature_store, hidden_dim=[128, 64]).to(device)
     elif model_name == "MF":
-        train_dataset = FeaturelessDatasetIterable(train_set, n_users, n_items, user_batch_size=int(1e4), neg_sampl=2)
-        val_dataset = FeaturelessDatasetIterable(valid_set, n_users, n_items, user_batch_size=int(1e4), neg_sampl=2)
-        model = MF(feature_store).to(device)
+        scheme_relations.features = [f for f in scheme_relations.features if f.name in ['user_id', 'app_id']]
+        feature_store = FeatureStore(scheme_relations,
+                                     FeatureScheme.from_feature_list([]),
+                                     FeatureScheme.from_feature_list([]),
+                                     emb_dims={"sparse": 16, "varlen": 16})
+
+        train_dataset = FeaturelessDatasetIterable(train_set, n_users, n_items, user_batch_size=int(1e4), neg_sampl=5)
+        val_dataset = FeaturelessDatasetIterable(valid_set, n_users, n_items, user_batch_size=int(1e4), neg_sampl=5)
+
+        model = MF(feature_store, device=device).to(device)
 
     train_loader = DataLoader(train_dataset, shuffle=False, batch_size=1, collate_fn=collate_fn, drop_last=False)
     val_loader = DataLoader(val_dataset, shuffle=False, batch_size=1, collate_fn=collate_fn, drop_last=False)
@@ -122,7 +130,7 @@ def train():
     print(f"> Training model[{model.__class__.__name__}] on device[{device}] begins...")
     best_roc_auc = -1.0
     best_epoch = -1
-    early_stop_thresh = 2
+    early_stop_thresh = 10
     for epoch in tqdm(range(n_epochs)):
         train_loss, train_roc_auc = train_epoch(
             model=model,
