@@ -1,67 +1,36 @@
-[tool.poetry]
-name = "thesis-recsys"
+[project]
+name = "recsys"
 version = "0.1.0"
 description = "A sandbox to write pipelines and train recommender systems models"
-authors = ["Milosz <milosz.hanczyk01@gmail.com>"]
+authors = [{name = "Miłosz Hańczyk", email = "milosz.hanczyk01@gmail.com"}]
 readme = "README.md"
-packages = [
-    {include = "data", from = "src"},
-    {include = "dataset", from = "src"},
-    {include = "metrics", from = "src"},
-    {include = "preprocessing", from = "src"},
-    {include = "features", from = "src"},
-    {include = "layers", from = "src"},
-    {include = "models", from = "src"},
-    {include = "inference", from = "src"},
-    {include = "utils", from = "src"},
-    {include = "scripts"}
+requires-python = ">=3.10"
+dependencies = [
+    "lightgbm>=4.5.0",
+    "pyarrow>=18.1.0",
+    "pycleora>=2.0.0",
+    "scikit-learn>=1.6.0",
+    "seaborn>=0.13.2",
+    "torch-geometric>=2.6.1",
+    "torch>=2.5.1",
+    "torchvision>=0.20.1",
 ]
 
-[tool.poetry.dependencies]
-python = "3.10.4"
-numpy = "1.26.0"
-pandas = "2.1.1"
-torch = {version = "2.0.1", source = "pytorch"}
-tqdm = "^4.66.1"
-scikit-learn = "^1.3.2"
-matplotlib = "^3.8.0"
-tensorboard = "^2.15.0"
-torch-geometric = "^2.4.0"
-jupyterlab = "^4.0.7"
-torch-sparse = {version = "^0.6.18+pt20cu118", source = "torch-sparse"}
-torch-scatter = {version = "^2.1.2+pt20cu118", source = "torch-sparse"}
-catalyst = "^22.4"
-gym = "^0.26.2"
-py2neo = "^2021.2.4"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^6.2.5"
-mypy = "^1.6.1"
-flake8 = "^6.1.0"
-jupyter = "^1.0.0"
-
-[tool.poetry.scripts]
-process_steam = "scripts.process_steam:process"
-build_graph = "scripts.build_graph:build_graph"
-build_knowledge_graph = "scripts.build_knowledge_graph:build_knowledge_graph"
-train = "scripts.train:train"
-eval = "scripts.eval:evaluate"
-train_graph = "scripts.train_graph:train"
-eval_graph = "scripts.eval_graph:evaluate"
-train_knowledge_graph = "scripts.train_knowledge_graph:train"
-eval_knowledge_graph = "scripts.eval_knowledge_graph:evaluate"
-
-[[tool.poetry.source]]
-name = "pytorch"
-url = "https://download.pytorch.org/whl/cu118"
-priority = "explicit"
-
-
-[[tool.poetry.source]]
-name = "torch-sparse"
-url = "https://data.pyg.org/whl/torch-2.0.0+cu118.html"
-priority = "explicit"
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+]
+test = [
+    "pytest>=8.3.4",
+]
+kaggle = [
+    "oauth2client>=4.1.3",
+    "pydrive2[fsspec]>=1.21.3",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = { find = { exclude = ["assets", "notebooks"]}}
