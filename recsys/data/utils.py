@@ -1,17 +1,18 @@
 from typing import List
 
 import numpy as np
+import pandas as pd
 import torch
 import torch_geometric.transforms as T
+from scipy.sparse import csr_matrix
 from torch_geometric.data import HeteroData
 from torch_geometric.loader import LinkNeighborLoader, NeighborLoader
-from scipy.sparse import csr_matrix
 
-from data.dataframe import DataFrame, SplitDataFrame, IDataFrame
-from data.datastore import DataStore
+from recsys.data.dataframe import DataFrame, IDataFrame, SplitDataFrame
+from recsys.data.datastore import DataStore
 
 
-def split_by_time(ds: DataStore, cols: List[str], supervision_ratio: float=0.2, validation_ratio: float=0.3) -> (IDataFrame, List):
+def split_by_time(ds: DataStore, cols: List[str], supervision_ratio: float = 0.2, validation_ratio: float = 0.3) -> (IDataFrame, List):
     """
     Sort and split dataframe into train and test sets on given split point.
 
@@ -39,7 +40,7 @@ def split_by_time(ds: DataStore, cols: List[str], supervision_ratio: float=0.2, 
     return split_df, []
 
 
-def filter_set(df, df_train, user_col, item_col):
+def filter_set(df: pd.DataFrame, df_train: pd.DataFrame, user_col: str, item_col: str):
     all_users, all_items = df_train[user_col].unique(), df_train[item_col].unique()
     df_filter = df[(df[user_col].isin(all_users)) & (df[item_col].isin(all_items))]
 
@@ -63,15 +64,15 @@ def load_graph(train_ei: np.array, test_ei: np.array, user_attr: np.array, item_
     """
     data = HeteroData()
 
-    data['user'].x = torch.from_numpy(user_attr).to(torch.float32)
-    data['user'].n_id = torch.arange(user_attr.shape[0])
+    data["user"].x = torch.from_numpy(user_attr).to(torch.float32)
+    data["user"].n_id = torch.arange(user_attr.shape[0])
 
-    data['app'].x = torch.from_numpy(item_attr).to(torch.float32)
-    data['app'].n_id = torch.arange(item_attr.shape[0])
+    data["app"].x = torch.from_numpy(item_attr).to(torch.float32)
+    data["app"].n_id = torch.arange(item_attr.shape[0])
 
-    data['user', 'recommends', 'app'].edge_index = torch.from_numpy(train_ei).to(torch.int64)
-    data['user', 'recommends', 'app'].edge_label_index = torch.from_numpy(test_ei).to(torch.int64)
-    data['user', 'recommends', 'app'].edge_label = torch.ones(test_ei.shape[1], dtype=torch.int64)
+    data["user", "recommends", "app"].edge_index = torch.from_numpy(train_ei).to(torch.int64)
+    data["user", "recommends", "app"].edge_label_index = torch.from_numpy(test_ei).to(torch.int64)
+    data["user", "recommends", "app"].edge_label = torch.ones(test_ei.shape[1], dtype=torch.int64)
 
     return data
 
@@ -112,17 +113,17 @@ def init_edge_loader(data: HeteroData, **kwargs) -> NeighborLoader:
         >>> loader = init_edge_loader(data, num_neighbors=5, neg_sampl=0.2, bs=32, shuffle=True)
     """
 
-    eli = data['user', 'recommends', 'app'].edge_label_index
-    el = data['user', 'recommends', 'app'].edge_label
+    eli = data["user", "recommends", "app"].edge_label_index
+    el = data["user", "recommends", "app"].edge_label
 
     loader = LinkNeighborLoader(
         data=data,
-        num_neighbors=kwargs['num_neighbors'],
-        neg_sampling_ratio=kwargs['neg_sampl'],
-        edge_label_index=(('user', 'recommends', 'app'), eli),
+        num_neighbors=kwargs["num_neighbors"],
+        neg_sampling_ratio=kwargs["neg_sampl"],
+        edge_label_index=(("user", "recommends", "app"), eli),
         edge_label=el,
-        batch_size=kwargs['bs'],
-        shuffle=kwargs['shuffle'],
+        batch_size=kwargs["bs"],
+        shuffle=kwargs["shuffle"],
     )
     return loader
 
@@ -137,5 +138,3 @@ def tabular2csr(train, valid, supervision=None):
     valid_csr = csr_matrix((np.ones_like(valid[0]), (valid[0], valid[1])), shape=(n_users, n_items))
 
     return train_csr, valid_csr
-
-

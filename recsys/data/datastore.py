@@ -1,7 +1,7 @@
 import pandas as pd
 
-from data.dataframe import IDataFrame, DataFrame
-from features.scheme import FeatureScheme
+from recsys.data.dataframe import DataFrame, IDataFrame
+from recsys.features.scheme import FeatureScheme
 
 
 class DataStore:
@@ -14,13 +14,16 @@ class DataStore:
     @staticmethod
     def get_read_method(method):
         match method:
-            case 'csv': return pd.read_csv
-            case 'parquet': return pd.read_parquet
-            case 'json': return pd.read_json
+            case "csv":
+                return pd.read_csv
+            case "parquet":
+                return pd.read_parquet
+            case "json":
+                return pd.read_json
 
     def apply(self, func):
         _kwargs = func.keywords
-        if "map_func" in _kwargs and _kwargs['map_func']:
+        if "map_func" in _kwargs and _kwargs["map_func"]:
             self.mapping = func(self)
         else:
             df, cols = func(self)

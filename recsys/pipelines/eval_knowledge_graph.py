@@ -1,20 +1,19 @@
 import argparse
+import math
 import os
 import pickle
-import math
 
 import numpy as np
 import pandas as pd
 import torch
+from metrics import ndcg_k, precision_k, recall_k
+from models.kg import RippleNet
+from pipelines.eval import recommend_k, recommendation_relevance
 from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-
-from models.kg import RippleNet
-from metrics import precision_k, recall_k, ndcg_k
-from utils import write_scalars, load_model
-from scripts.eval import recommend_k, recommendation_relevance
+from utils import load_model, write_scalars
 
 
 def collate_fn(batch):
@@ -37,12 +36,11 @@ class IterableRippleDataset(Dataset):
     def sample_ripple_set(self, ripple_set, batch_users):
         sample_fun = lambda x: x.sample(n=min(750, x.shape[0])).values
 
-        i = ripple_set.index.isin(batch_users, level='user_id')
-        ripple_set_samples = ripple_set[i].groupby('user_id')
+        i = ripple_set.index.isin(batch_users, level="user_id")
+        ripple_set_samples = ripple_set[i].groupby("user_id")
         ripple_set_samples = ripple_set_samples.apply(sample_fun)
         ripple_set_samples = np.repeat(ripple_set_samples, 1231).values
-        ripple_set_samples = pad_sequence([torch.tensor(i) for i in ripple_set_samples], batch_first=True,
-                                          padding_value=0)
+        ripple_set_samples = pad_sequence([torch.tensor(i) for i in ripple_set_samples], batch_first=True, padding_value=0)
 
         return ripple_set_samples
 
@@ -86,13 +84,13 @@ def recommend_k_kg(model, dataloader, device, k=10):
 
 def get_args():
     """Parse commandline arguments."""
-    parser = argparse.ArgumentParser(description='Evaluation for graph-based recommendation system.')
-    parser.add_argument('--artefact_directory', type=str)
-    parser.add_argument('--model_path', type=str)
-    parser.add_argument('--K', nargs="+", default=[1, 2, 5, 10, 20, 50, 100])
-    parser.add_argument('--cuda', type=bool, default=False)
-    parser.add_argument('--num_workers', type=int, default=0)
-    parser.add_argument('--seed', type=int, default=0)
+    parser = argparse.ArgumentParser(description="Evaluation for graph-based recommendation system.")
+    parser.add_argument("--artefact_directory", type=str)
+    parser.add_argument("--model_path", type=str)
+    parser.add_argument("--K", nargs="+", default=[1, 2, 5, 10, 20, 50, 100])
+    parser.add_argument("--cuda", type=bool, default=False)
+    parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--seed", type=int, default=0)
 
     return parser.parse_args()
 
@@ -106,28 +104,28 @@ def evaluate():
     log_dir = os.path.dirname(model_path)
     model_name = os.path.basename(os.path.dirname(log_dir))
     K = [int(k) for k in args.K]
-    device = 'cuda' if (args.cuda and torch.cuda.is_available()) else 'cpu'
+    device = "cuda" if (args.cuda and torch.cuda.is_available()) else "cpu"
     num_workers = args.num_workers
     seed = args.seed
 
     torch.manual_seed(seed)
 
-    with open(os.path.join(dir_art, 'knowledge_graph.pkl'), "rb") as f:
+    with open(os.path.join(dir_art, "knowledge_graph.pkl"), "rb") as f:
         knowledge_graph = pd.read_pickle(f)
-    with open(os.path.join(dir_art, 'matrix.pkl'), "rb") as f:
+    with open(os.path.join(dir_art, "matrix.pkl"), "rb") as f:
         matrix = pd.read_pickle(f)
 
     valid_set = knowledge_graph["valid_set"]
-    ripple_sets_valid = knowledge_graph['ripple_sets_valid']
+    ripple_sets_valid = knowledge_graph["ripple_sets_valid"]
     RELATIONS_MAP = knowledge_graph["relations_map"]
     ENTITY_MAP = knowledge_graph["entity_map"]
 
-    train_csr = matrix['train_csr']
-    valid_csr = matrix['valid_csr']
+    train_csr = matrix["train_csr"]
+    valid_csr = matrix["valid_csr"]
     relevance_mask = np.asarray((valid_csr.sum(axis=1) != 0)).ravel()
     valid_csr = valid_csr[relevance_mask]
 
-    users = valid_set['user_id'].unique()
+    users = valid_set["user_id"].unique()
     items = np.arange(valid_csr.shape[1]) + 1
 
     users = users
@@ -135,29 +133,15 @@ def evaluate():
 
     if model_name == "RippleNet":
         model_cls = RippleNet
-        model_kwargs = {
-            "emb_dim": 16,
-            "n_relations": 4,
-            "n_entities": max(ENTITY_MAP.values())
-        }
+        model_kwargs = {"emb_dim": 16, "n_relations": 4, "n_entities": max(ENTITY_MAP.values())}
         eval_dataset = IterableRippleDataset(users, items, ripple_sets_valid, int(5))
 
     eval_loader = DataLoader(eval_dataset, batch_size=1, shuffle=False, collate_fn=collate_fn, drop_last=False, num_workers=num_workers)
-    model = load_model(
-        cls=model_cls,
-        model_path=model_path,
-        model_kwargs=model_kwargs,
-        device=device
-    )
+    model = load_model(cls=model_cls, model_path=model_path, model_kwargs=model_kwargs, device=device)
     prob = recommend_k_kg(model, eval_loader, device)
     prob_full = prob.reshape(-1, 1231)
 
-    recommendations = recommend_k(
-        prob_full=prob_full,
-        past_interactions=train_csr,
-        k=100,
-        user_batch_size=10000
-    )
+    recommendations = recommend_k(prob_full=prob_full, past_interactions=train_csr, k=100, user_batch_size=10000)
 
     output_metrics = {"precision": [], "recall": [], "ndcg": []}
     for k in tqdm(K):
@@ -175,9 +159,9 @@ def evaluate():
         scalars = [v[i] for v in output_metrics.values()]
         write_scalars(writer=writer, names=output_metrics.keys(), scalars=scalars, step=k)
 
-    with open(os.path.join(log_dir, 'output_metrics.pkl'), 'wb') as f:
+    with open(os.path.join(log_dir, "output_metrics.pkl"), "wb") as f:
         pickle.dump(output_metrics, f)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     evaluate()

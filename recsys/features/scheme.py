@@ -1,6 +1,6 @@
 import pickle
 
-from features.features import VarlenFeat
+from recsys.features.features import VarlenFeat
 
 
 class FeatureScheme:
@@ -20,7 +20,7 @@ class FeatureScheme:
         return names
 
     def dump(self, path):
-        with open(path, 'wb') as f:
+        with open(path, "wb") as f:
             pickle.dump(self, f)
 
     @classmethod

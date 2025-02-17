@@ -13,7 +13,7 @@ _default_ignored_interaction_value: int = -1
 
 
 def _remove_past_interactions(prob: torch.Tensor, batch: dict[str, torch.Tensor], past_interactions_csr: csr_array) -> None:
-    user_batch = batch["u_id"].unique()
+    user_batch = batch["u_id"].unique().numpy()
     past_interactions_coords = past_interactions_csr[user_batch].tocoo().coords
     prob[past_interactions_coords] = _default_ignored_interaction_value
 
